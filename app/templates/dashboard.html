@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - NSC Micro Market{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+    <div class="col">
+        <h4 class="fw-semibold">Dashboard</h4>
+        {% if last_sync %}
+        <small class="text-muted">
+            Last sync: {{ last_sync.sync_ts[:19] }} UTC
+            ({{ last_sync.sync_type }}, {{ last_sync.status }},
+            {{ last_sync.records_fetched or 0 }} records)
+        </small>
+        {% else %}
+        <small class="text-muted">No sync has been run yet. Click "Sync Now" to pull data from Clover.</small>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card danger h-100">
+            <div class="card-body">
+                <div class="text-muted small">Negative Margin Items</div>
+                <div class="fs-2 fw-bold text-danger">{{ negative_count }}</div>
+                <div class="small">Selling below cost</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card warning h-100">
+            <div class="card-body">
+                <div class="text-muted small">Low Margin Items</div>
+                <div class="fs-2 fw-bold text-warning">{{ low_margin_count }}</div>
+                <div class="small">Below {{ threshold_pct }}% margin</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card danger h-100">
+            <div class="card-body">
+                <div class="text-muted small">Shrinkage Alerts</div>
+                <div class="fs-2 fw-bold text-danger">{{ shrinkage_item_count }}</div>
+                <div class="small">Items with unexplained stock loss</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card info h-100">
+            <div class="card-body">
+                <div class="text-muted small">Total Active Items</div>
+                <div class="fs-2 fw-bold">{{ total_items }}</div>
+                <div class="small">In catalog</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header fw-semibold">Top Sellers (Last 30 Days)</div>
+            <div class="card-body p-0">
+                {% if top_sellers %}
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Item</th>
+                            <th class="text-end">Units Sold</th>
+                            <th class="text-end">Revenue</th>
+                            <th class="text-end">Share</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in top_sellers %}
+                        <tr>
+                            <td><a href="/item/{{ row.item_id }}" class="text-decoration-none">{{ row.name }}</a></td>
+                            <td class="text-end">{{ row.units_sold }}</td>
+                            <td class="text-end">${{ "%.2f"|format(row.gross_revenue_cents / 100) }}</td>
+                            <td class="text-end">{{ row.revenue_share_pct }}%</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="p-3 text-muted">No sales data available. Run a sync first.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header fw-semibold">Quick Actions</div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-primary" onclick="triggerIngest('incremental')">Incremental Sync</button>
+                    <button class="btn btn-outline-secondary" onclick="triggerIngest('full')">Full Sync (30 days)</button>
+                    <a href="/analysis/margins" class="btn btn-outline-dark">View Margin Report</a>
+                    <a href="/analysis/shrinkage" class="btn btn-outline-dark">View Shrinkage Report</a>
+                    <a href="/analysis/velocity" class="btn btn-outline-dark">View Velocity Report</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
