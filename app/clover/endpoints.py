@@ -31,7 +31,7 @@ def fetch_orders(client, start_ts_ms: int, end_ts_ms: int) -> list:
     """
     results = []
     params = {
-        "filter": f"createdTime>={start_ts_ms}&createdTime<={end_ts_ms}",
+        "filter": [f"createdTime>={start_ts_ms}", f"createdTime<={end_ts_ms}"],
     }
     for page in paginate(client, "orders", extra_params=params):
         results.extend(page)
@@ -66,7 +66,7 @@ def fetch_payments(client, start_ts_ms: int, end_ts_ms: int) -> list:
     """
     results = []
     params = {
-        "filter": f"createdTime>={start_ts_ms}&createdTime<={end_ts_ms}",
+        "filter": [f"createdTime>={start_ts_ms}", f"createdTime<={end_ts_ms}"],
     }
     for page in paginate(client, "payments", extra_params=params):
         results.extend(page)

@@ -143,8 +143,8 @@
 {% block scripts %}
 <script>
 (function () {
-    const labels = {{ chart.labels | tojson }};
-    const values = {{ chart.values | tojson }};
+    const labels = {{ chart['labels'] | tojson }};
+    const values = {{ chart['values'] | tojson }};
 
     new Chart(document.getElementById('stockChart'), {
         type: 'bar',

@@ -12,3 +12,5 @@ env/
 dist/
 build/
 .DS_Store
+logs/*.log
+logs/*.log.*

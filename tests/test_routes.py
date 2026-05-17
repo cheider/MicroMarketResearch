@@ -1,4 +1,5 @@
 import json
+import time
 import pytest
 from unittest.mock import MagicMock
 
@@ -30,6 +31,16 @@ class TestIngestStatusRoute:
 
 
 class TestIngestRoute:
+    def _wait_for_job(self, client, job_id, timeout=2.0):
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            resp = client.get(f"/ingest/progress/{job_id}")
+            data = json.loads(resp.data)
+            if data["overall_status"] in ("done", "error"):
+                return data
+            time.sleep(0.05)
+        raise TimeoutError(f"Job {job_id} did not complete within {timeout}s")
+
     def test_ingest_with_mocked_client_creates_sync_log(self, client, app):
         mock_client = MagicMock()
         mock_client.get.return_value = {"elements": []}
@@ -40,9 +51,13 @@ class TestIngestRoute:
             data=json.dumps({"mode": "full", "days": 30}),
             content_type="application/json",
         )
-        assert response.status_code == 200
+        assert response.status_code == 202
         data = json.loads(response.data)
-        assert data["status"] == "success"
+        assert data["status"] == "started"
+        assert "job_id" in data
+
+        final = self._wait_for_job(client, data["job_id"])
+        assert final["overall_status"] == "done"
 
         status_response = client.get("/ingest/status")
         status_data = json.loads(status_response.data)
@@ -54,7 +69,111 @@ class TestIngestRoute:
         app.extensions["clover_client"] = mock_client
 
         response = client.post("/ingest", content_type="application/json")
-        assert response.status_code == 200
+        assert response.status_code == 202
+        data = json.loads(response.data)
+        assert data["status"] == "started"
+        # Wait for completion so the background thread releases the DB file
+        self._wait_for_job(client, data["job_id"])
+
+
+class TestIngestProgress:
+    def _start_ingest(self, client, app, mode="full"):
+        mock_client = MagicMock()
+        mock_client.get.return_value = {"elements": []}
+        app.extensions["clover_client"] = mock_client
+        resp = client.post(
+            "/ingest",
+            data=json.dumps({"mode": mode, "days": 30}),
+            content_type="application/json",
+        )
+        return json.loads(resp.data)["job_id"]
+
+    def _wait_for_completion(self, client, job_id, timeout=2.0):
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            resp = client.get(f"/ingest/progress/{job_id}")
+            data = json.loads(resp.data)
+            if data["overall_status"] in ("done", "error"):
+                return data
+            time.sleep(0.05)
+        raise TimeoutError(f"Job {job_id} did not complete within {timeout}s")
+
+    def test_progress_endpoint_returns_404_for_unknown_job(self, client):
+        resp = client.get("/ingest/progress/nonexistent-job-id")
+        assert resp.status_code == 404
+
+    def test_progress_endpoint_returns_200_for_known_job(self, client, app):
+        job_id = self._start_ingest(client, app)
+        resp = client.get(f"/ingest/progress/{job_id}")
+        assert resp.status_code == 200
+        self._wait_for_completion(client, job_id)
+
+    def test_progress_response_has_required_keys(self, client, app):
+        job_id = self._start_ingest(client, app)
+        data = json.loads(client.get(f"/ingest/progress/{job_id}").data)
+        assert "job_id" in data
+        assert "overall_status" in data
+        assert "stages" in data
+        assert "result" in data
+        assert "error_message" in data
+        self._wait_for_completion(client, job_id)
+
+    def test_all_stages_present_in_response(self, client, app):
+        expected = {
+            "categories", "items", "orders",
+            "line_items", "daily_sales", "stock", "log",
+        }
+        job_id = self._start_ingest(client, app)
+        data = json.loads(client.get(f"/ingest/progress/{job_id}").data)
+        assert set(data["stages"].keys()) == expected
+        self._wait_for_completion(client, job_id)
+
+    def test_job_completes_with_overall_status_done(self, client, app):
+        job_id = self._start_ingest(client, app)
+        final = self._wait_for_completion(client, job_id)
+        assert final["overall_status"] == "done"
+
+    def test_all_stages_done_when_job_complete(self, client, app):
+        job_id = self._start_ingest(client, app)
+        final = self._wait_for_completion(client, job_id)
+        for stage_id, stage_data in final["stages"].items():
+            assert stage_data["status"] == "done", (
+                f"Stage {stage_id!r} is {stage_data['status']!r}, expected 'done'"
+            )
+
+    def test_result_populated_when_done(self, client, app):
+        job_id = self._start_ingest(client, app)
+        final = self._wait_for_completion(client, job_id)
+        assert final["result"] is not None
+        assert "records_fetched" in final["result"]
+        assert "categories_synced" in final["result"]
+
+    def test_incremental_mode_job_completes(self, client, app):
+        job_id = self._start_ingest(client, app, mode="incremental")
+        final = self._wait_for_completion(client, job_id)
+        assert final["overall_status"] == "done"
+
+    def test_stage_counts_are_non_negative_integers_or_none(self, client, app):
+        job_id = self._start_ingest(client, app)
+        final = self._wait_for_completion(client, job_id)
+        for stage_id, stage_data in final["stages"].items():
+            count = stage_data["count"]
+            assert count is None or (isinstance(count, int) and count >= 0), (
+                f"Stage {stage_id!r} has invalid count: {count!r}"
+            )
+
+    def test_job_id_in_progress_response_matches_post_response(
+        self, client, app
+    ):
+        job_id = self._start_ingest(client, app)
+        prog = json.loads(client.get(f"/ingest/progress/{job_id}").data)
+        assert prog["job_id"] == job_id
+        self._wait_for_completion(client, job_id)
+
+    def test_error_message_is_none_on_successful_job(self, client, app):
+        job_id = self._start_ingest(client, app)
+        final = self._wait_for_completion(client, job_id)
+        assert final["error_message"] is None
 
 
 class TestMarginsRoute:
