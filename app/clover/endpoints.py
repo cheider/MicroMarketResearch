@@ -7,6 +7,14 @@ Transformation and privacy filtering happen in app/etl/transform.py.
 from app.clover.paginator import paginate
 
 
+def fetch_categories(client) -> list:
+    """Fetches all item categories. Returns raw category dicts."""
+    results = []
+    for page in paginate(client, "categories"):
+        results.extend(page)
+    return results
+
+
 def fetch_items(client) -> list:
     """Fetches the full item catalog. Returns raw item dicts."""
     results = []

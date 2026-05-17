@@ -13,11 +13,11 @@ def setup_db(app):
 
 class TestDashboardRoute:
     def test_returns_200(self, client):
-        response = client.get("/")
+        response = client.get("/", follow_redirects=True)
         assert response.status_code == 200
 
     def test_contains_expected_text(self, client):
-        response = client.get("/")
+        response = client.get("/", follow_redirects=True)
         assert b"NSC Micro Market" in response.data
 
 

@@ -20,6 +20,7 @@ def create_app(config=None):
     app.extensions["app_config"] = cfg
 
     from app.routes.dashboard import dashboard_bp
+    from app.routes.dashboards import dashboards_bp
     from app.routes.ingest import ingest_bp
     from app.routes.margins import margins_bp
     from app.routes.shrinkage import shrinkage_bp
@@ -28,6 +29,7 @@ def create_app(config=None):
     from app.routes.settings import settings_bp
 
     app.register_blueprint(dashboard_bp)
+    app.register_blueprint(dashboards_bp)
     app.register_blueprint(ingest_bp)
     app.register_blueprint(margins_bp)
     app.register_blueprint(shrinkage_bp)

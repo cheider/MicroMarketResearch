@@ -12,18 +12,45 @@ def _now_utc() -> str:
     return datetime.now(tz=timezone.utc).isoformat()
 
 
+def upsert_categories(categories: list):
+    """Batch insert or update category rows."""
+    now = _now_utc()
+    with get_connection() as conn:
+        conn.executemany(
+            """
+            INSERT INTO categories (category_id, name, last_synced)
+            VALUES (:category_id, :name, :last_synced)
+            ON CONFLICT(category_id) DO UPDATE SET
+                name        = excluded.name,
+                last_synced = excluded.last_synced
+            """,
+            [
+                {
+                    "category_id": c["category_id"],
+                    "name": c["name"],
+                    "last_synced": now,
+                }
+                for c in categories
+                if c.get("category_id")
+            ],
+        )
+
+
 def upsert_item(item: dict):
     """Insert or update a single item row."""
     with get_connection() as conn:
         conn.execute(
             """
-            INSERT INTO items (item_id, name, price_cents, cost_cents, is_active, last_synced)
-            VALUES (:item_id, :name, :price_cents, :cost_cents, :is_active, :last_synced)
+            INSERT INTO items
+                (item_id, name, price_cents, cost_cents, is_active, category_id, last_synced)
+            VALUES
+                (:item_id, :name, :price_cents, :cost_cents, :is_active, :category_id, :last_synced)
             ON CONFLICT(item_id) DO UPDATE SET
                 name        = excluded.name,
                 price_cents = excluded.price_cents,
                 cost_cents  = excluded.cost_cents,
                 is_active   = excluded.is_active,
+                category_id = excluded.category_id,
                 last_synced = excluded.last_synced
             """,
             {
@@ -32,6 +59,7 @@ def upsert_item(item: dict):
                 "price_cents": item["price_cents"],
                 "cost_cents": item.get("cost_cents"),
                 "is_active": item.get("is_active", 1),
+                "category_id": item.get("category_id"),
                 "last_synced": _now_utc(),
             },
         )
@@ -43,13 +71,16 @@ def upsert_items(items: list):
     with get_connection() as conn:
         conn.executemany(
             """
-            INSERT INTO items (item_id, name, price_cents, cost_cents, is_active, last_synced)
-            VALUES (:item_id, :name, :price_cents, :cost_cents, :is_active, :last_synced)
+            INSERT INTO items
+                (item_id, name, price_cents, cost_cents, is_active, category_id, last_synced)
+            VALUES
+                (:item_id, :name, :price_cents, :cost_cents, :is_active, :category_id, :last_synced)
             ON CONFLICT(item_id) DO UPDATE SET
                 name        = excluded.name,
                 price_cents = excluded.price_cents,
                 cost_cents  = excluded.cost_cents,
                 is_active   = excluded.is_active,
+                category_id = excluded.category_id,
                 last_synced = excluded.last_synced
             """,
             [
@@ -58,6 +89,7 @@ def upsert_items(items: list):
                     "name": item["name"],
                     "price_cents": item["price_cents"],
                     "cost_cents": item.get("cost_cents"),
+                    "category_id": item.get("category_id"),
                     "is_active": item.get("is_active", 1),
                     "last_synced": now,
                 }

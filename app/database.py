@@ -12,11 +12,13 @@ def init_db(db_path: str):
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys=ON")
         _create_schema(conn)
+        _migrate(conn)
         conn.commit()
         conn.close()
     else:
         with get_connection() as conn:
             _create_schema(conn)
+            _migrate(conn)
 
 
 @contextmanager
@@ -40,6 +42,12 @@ def get_connection():
 
 def _create_schema(conn: sqlite3.Connection):
     conn.executescript("""
+        CREATE TABLE IF NOT EXISTS categories (
+            category_id   TEXT PRIMARY KEY,
+            name          TEXT NOT NULL,
+            last_synced   TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS items (
             item_id       TEXT PRIMARY KEY,
             name          TEXT NOT NULL,
@@ -74,6 +82,14 @@ def _create_schema(conn: sqlite3.Connection):
             error_detail    TEXT
         );
     """)
+
+
+def _migrate(conn: sqlite3.Connection):
+    """Applies additive migrations safe to run on existing databases."""
+    try:
+        conn.execute("ALTER TABLE items ADD COLUMN category_id TEXT")
+    except sqlite3.OperationalError:
+        pass  # column already exists
 
 
 def column_audit(table: str) -> list:

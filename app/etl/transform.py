@@ -14,7 +14,9 @@ from datetime import datetime, timezone
 from collections import defaultdict
 
 
-ITEM_SAFE_FIELDS = {"id", "name", "price", "defaultCost", "isRevenue", "hidden", "itemStock"}
+CATEGORY_SAFE_FIELDS = {"id", "name"}
+
+ITEM_SAFE_FIELDS = {"id", "name", "price", "defaultCost", "isRevenue", "hidden", "itemStock", "categories"}
 
 LINE_ITEM_SAFE_FIELDS = {"id", "item", "quantity", "price", "createdTime"}
 
@@ -25,6 +27,17 @@ def _epoch_ms_to_date(epoch_ms: int) -> str:
     """Converts a Clover millisecond epoch timestamp to a YYYY-MM-DD date string in UTC."""
     dt = datetime.fromtimestamp(epoch_ms / 1000, tz=timezone.utc)
     return dt.strftime("%Y-%m-%d")
+
+
+def clean_category(raw: dict) -> dict:
+    """
+    Extracts safe fields from a raw Clover category dict.
+    Returns a normalized dict ready for database insertion.
+    """
+    return {
+        "category_id": raw.get("id"),
+        "name": raw.get("name", ""),
+    }
 
 
 def _hash_order_id(order_id: str, salt: str) -> str:
@@ -43,6 +56,10 @@ def clean_item(raw: dict) -> dict:
     item_stock = raw.get("itemStock") or {}
     stock_quantity = item_stock.get("quantity") if isinstance(item_stock, dict) else None
 
+    categories = raw.get("categories") or {}
+    cat_elements = categories.get("elements", []) if isinstance(categories, dict) else []
+    category_id = cat_elements[0].get("id") if cat_elements else None
+
     return {
         "item_id": safe.get("id"),
         "name": safe.get("name", ""),
@@ -50,6 +67,7 @@ def clean_item(raw: dict) -> dict:
         "cost_cents": safe.get("defaultCost"),
         "is_active": 0 if safe.get("hidden") else 1,
         "stock_quantity": stock_quantity,
+        "category_id": category_id,
     }
 
 
