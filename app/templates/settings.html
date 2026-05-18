@@ -41,7 +41,15 @@
                                 id="tokenToggle"
                             >Show</button>
                         </div>
-                        <div class="form-text">The token is never displayed. Enter a new value only to replace it.</div>
+                        <div class="form-text">
+                            {% if token_is_set %}
+                            <span class="text-success fw-semibold">&#10003; Token is configured.</span>
+                            Leave blank to keep it.
+                            {% else %}
+                            <span class="text-danger fw-semibold">&#10007; No token set.</span>
+                            Enter your Clover API token above.
+                            {% endif %}
+                        </div>
                     </div>
 
                     <div class="mb-3">

@@ -1,7 +1,10 @@
 import os
 
 from dotenv import set_key
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
+from flask import (
+    Blueprint, render_template, request,
+    redirect, url_for, flash, current_app,
+)
 
 from app.clover.client import CloverClient
 from app.database import get_connection
@@ -22,7 +25,8 @@ def _get_sync_log() -> list:
     with get_connection() as conn:
         rows = conn.execute(
             """
-            SELECT id, sync_ts, sync_type, status, records_fetched, error_detail
+            SELECT id, sync_ts, sync_type, status,
+                   records_fetched, error_detail
             FROM sync_log
             ORDER BY id DESC
             LIMIT 100
@@ -44,6 +48,7 @@ def settings():
         base_url=base_url,
         is_custom=is_custom,
         sync_log=sync_log,
+        token_is_set=bool(cfg.CLOVER_API_TOKEN),
     )
 
 

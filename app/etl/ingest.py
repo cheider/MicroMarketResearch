@@ -7,8 +7,8 @@ Flow:
   3. Fetch items from Clover
   4. Transform (anonymize, filter fields)
   5. Upsert into SQLite
-  6. Fetch orders for the target date range
-  7. For each order, fetch line items
+  6. Fetch orders for the target date range (line items included inline)
+  7. Extract line items from order objects
   8. Aggregate line items to daily totals in memory
   9. Upsert daily_sales into SQLite
   10. Fetch stock snapshots
@@ -23,7 +23,6 @@ from app.clover.endpoints import (
     fetch_categories,
     fetch_items,
     fetch_orders,
-    fetch_line_items,
     fetch_item_stocks,
 )
 from app.etl.transform import (
@@ -79,10 +78,10 @@ def run_incremental_ingest(client, days: int = 30, on_progress=None) -> dict:
     )
 
 
-def _notify(on_progress, stage_id: str, status: str, count=None):
+def _notify(on_progress, stage_id: str, status: str, count=None, detail=None):
     """Call on_progress if provided; silently skip if None."""
     if on_progress is not None:
-        on_progress(stage_id, status, count)
+        on_progress(stage_id, status, count, detail)
 
 
 def _run_ingest(
@@ -129,17 +128,17 @@ def _run_ingest(
         _notify(on_progress, "orders", "done", len(raw_orders))
 
         _current_stage = "line_items"
-        _notify(on_progress, "line_items", "running")
+        _notify(on_progress, "line_items", "running",
+                detail=f"Extracting from {len(raw_orders)} orders")
         all_line_items = []
         for order in raw_orders:
-            order_id = order.get("id")
-            if not order_id:
-                continue
-            line_items = fetch_line_items(client, order_id)
-            all_line_items.extend(line_items)
-        logger.info(
-            "Line items processed=%d", len(all_line_items)
-        )
+            order_ts = order.get("createdTime")
+            elements = (order.get("lineItems") or {}).get("elements") or []
+            for li in elements:
+                if "createdTime" not in li and order_ts:
+                    li["createdTime"] = order_ts
+            all_line_items.extend(elements)
+        logger.info("Line items extracted=%d", len(all_line_items))
         _notify(on_progress, "line_items", "done", len(all_line_items))
 
         _current_stage = "daily_sales"

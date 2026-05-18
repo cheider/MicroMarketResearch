@@ -2,13 +2,17 @@ import os
 from dataclasses import dataclass, field
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 
 @dataclass
 class Config:
-    CLOVER_API_TOKEN: str = field(default_factory=lambda: os.environ["CLOVER_API_TOKEN"])
-    CLOVER_MERCHANT_ID: str = field(default_factory=lambda: os.environ["CLOVER_MERCHANT_ID"])
+    CLOVER_API_TOKEN: str = field(
+        default_factory=lambda: os.environ.get("CLOVER_API_TOKEN", "")
+    )
+    CLOVER_MERCHANT_ID: str = field(
+        default_factory=lambda: os.environ.get("CLOVER_MERCHANT_ID", "")
+    )
     CLOVER_BASE_URL: str = field(
         default_factory=lambda: os.environ.get("CLOVER_BASE_URL", "https://api.clover.com")
     )

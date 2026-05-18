@@ -138,7 +138,8 @@ class TestIngestProgress:
         final = self._wait_for_completion(client, job_id)
         for stage_id, stage_data in final["stages"].items():
             assert stage_data["status"] == "done", (
-                f"Stage {stage_id!r} is {stage_data['status']!r}, expected 'done'"
+                f"Stage {stage_id!r} is "
+                f"{stage_data['status']!r}, expected 'done'"
             )
 
     def test_result_populated_when_done(self, client, app):
@@ -175,6 +176,21 @@ class TestIngestProgress:
         final = self._wait_for_completion(client, job_id)
         assert final["error_message"] is None
 
+    def test_stage_records_have_detail_field(self, client, app):
+        job_id = self._start_ingest(client, app)
+        final = self._wait_for_completion(client, job_id)
+        for stage_id, stage_data in final["stages"].items():
+            assert "detail" in stage_data, (
+                f"Stage {stage_id!r} missing 'detail' key"
+            )
+
+    def test_order_cache_is_set_after_ingest(self, client, app):
+        from app.etl.load import get_fetched_order_ids
+        job_id = self._start_ingest(client, app)
+        self._wait_for_completion(client, job_id)
+        ids = get_fetched_order_ids()
+        assert isinstance(ids, set)
+
 
 class TestMarginsRoute:
     def test_returns_200(self, client):
@@ -209,6 +225,11 @@ class TestItemRoute:
 
 
 class TestSettingsRoute:
+    @pytest.fixture(autouse=True)
+    def no_env_write(self, monkeypatch):
+        """Prevent settings tests from writing to the real .env file."""
+        monkeypatch.setattr("app.routes.settings.set_key", lambda *a, **kw: None)
+
     def test_settings_returns_200(self, client):
         response = client.get("/settings")
         assert response.status_code == 200

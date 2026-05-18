@@ -35,16 +35,23 @@ def _new_job(job_id: str, mode: str) -> dict:
         "overall_status": "running",
         "error_message": None,
         "result": None,
-        "stages": {s: {"status": "pending", "count": None} for s in STAGES},
+        "stages": {
+            s: {"status": "pending", "count": None, "detail": None}
+            for s in STAGES
+        },
     }
 
 
 def _make_progress_callback(job_id: str):
-    def on_progress(stage_id: str, status: str, count=None):
+    def on_progress(stage_id: str, status: str, count=None, detail=None):
         with _jobs_lock:
             job = _jobs.get(job_id)
             if job:
-                job["stages"][stage_id] = {"status": status, "count": count}
+                job["stages"][stage_id] = {
+                    "status": status,
+                    "count": count,
+                    "detail": detail,
+                }
     return on_progress
 
 
@@ -68,7 +75,9 @@ def trigger_ingest():
     def run_job():
         try:
             if mode == "full":
-                result = run_full_ingest(client, days=days, on_progress=on_progress)
+                result = run_full_ingest(
+                    client, days=days, on_progress=on_progress
+                )
             else:
                 result = run_incremental_ingest(
                     client, days=days, on_progress=on_progress
@@ -99,7 +108,8 @@ def ingest_status():
     with get_connection() as conn:
         row = conn.execute(
             """
-            SELECT id, sync_ts, sync_type, records_fetched, status, error_detail
+            SELECT id, sync_ts, sync_type, records_fetched,
+                   status, error_detail
             FROM sync_log
             ORDER BY id DESC
             LIMIT 1

@@ -185,3 +185,28 @@ def get_last_successful_sync_ts() -> str | None:
             """
         ).fetchone()
         return row["sync_ts"] if row else None
+
+
+def upsert_fetched_orders(order_ids: list) -> None:
+    """Record order IDs whose line items have been fetched (idempotent)."""
+    if not order_ids:
+        return
+    now = _now_utc()
+    with get_connection() as conn:
+        conn.executemany(
+            """
+            INSERT INTO fetched_orders (order_id, fetched_at)
+            VALUES (?, ?)
+            ON CONFLICT(order_id) DO NOTHING
+            """,
+            [(oid, now) for oid in order_ids],
+        )
+
+
+def get_fetched_order_ids() -> set:
+    """Return the set of all order IDs already fetched."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT order_id FROM fetched_orders"
+        ).fetchall()
+    return {row["order_id"] for row in rows}

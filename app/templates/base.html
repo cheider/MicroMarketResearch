@@ -185,7 +185,7 @@
 <!-- Sync Progress Modal -->
 <div class="modal fade" id="syncProgressModal" tabindex="-1"
      aria-labelledby="syncProgressModalLabel" aria-hidden="true"
-     data-bs-backdrop="static" data-bs-keyboard="false">
+>
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header border-0 pb-0">
@@ -237,13 +237,18 @@
 
     function _renderStages(stages) {
         var html = STAGE_ORDER.map(function (id) {
-            var s = stages[id] || {status: 'pending', count: null};
+            var s = stages[id] || {status: 'pending', count: null, detail: null};
             var badge = (s.count !== null)
                 ? ' <span class="badge bg-secondary ms-1">' + s.count + '</span>'
                 : '';
-            return '<li class="mb-2 d-flex align-items-center">' +
+            var detail = s.detail
+                ? '<div class="text-muted ms-4" style="font-size:0.75rem;">' + s.detail + '</div>'
+                : '';
+            return '<li class="mb-2">' +
+                   '<div class="d-flex align-items-center">' +
                    _icon(s.status) +
-                   '<span>' + STAGE_LABELS[id] + badge + '</span></li>';
+                   '<span>' + STAGE_LABELS[id] + badge + '</span>' +
+                   '</div>' + detail + '</li>';
         }).join('');
         document.getElementById('syncStageList').innerHTML = html;
     }
@@ -254,6 +259,39 @@
         summary.classList.add('d-none');
         summary.innerHTML = '';
         document.getElementById('syncCloseBtn').classList.add('d-none');
+    }
+
+    function _getSyncBtn() {
+        return document.querySelector('.sidebar-bottom .btn-primary');
+    }
+
+    function _updateSyncBtn(stages, overallStatus) {
+        var btn = _getSyncBtn();
+        if (!btn) return;
+        if (overallStatus === 'done') {
+            btn.textContent = 'Sync complete';
+            setTimeout(function () {
+                btn.disabled = false;
+                btn.textContent = 'Sync Now';
+            }, 3000);
+            return;
+        }
+        if (overallStatus === 'error') {
+            btn.disabled = false;
+            btn.textContent = 'Sync Now';
+            return;
+        }
+        for (var i = 0; i < STAGE_ORDER.length; i++) {
+            var id = STAGE_ORDER[i];
+            var s = (stages || {})[id] || {};
+            if (s.status === 'running') {
+                btn.textContent = s.detail
+                    ? STAGE_LABELS[id] + ': ' + s.detail
+                    : STAGE_LABELS[id] + '...';
+                return;
+            }
+        }
+        btn.textContent = 'Sync in progress...';
     }
 
     function _showDone(data) {
@@ -272,8 +310,7 @@
                 '<span class="text-danger">Error: ' +
                 (data.error_message || 'Unknown error') + '</span>';
         }
-        var syncBtn = document.querySelector('.sidebar-bottom .btn-primary');
-        if (syncBtn) { syncBtn.disabled = false; syncBtn.textContent = 'Sync Now'; }
+        _updateSyncBtn({}, data.overall_status);
         document.getElementById('syncCloseBtn').classList.remove('d-none');
     }
 
@@ -284,6 +321,7 @@
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 _renderStages(data.stages || {});
+                _updateSyncBtn(data.stages || {}, data.overall_status);
                 var done = data.overall_status === 'done';
                 var errored = data.overall_status === 'error';
                 if (done || errored) {
@@ -298,8 +336,8 @@
     }
 
     window.triggerIngest = function (mode) {
-        var syncBtn = document.querySelector('.sidebar-bottom .btn-primary');
-        if (syncBtn) { syncBtn.disabled = true; syncBtn.textContent = 'Syncing...'; }
+        var syncBtn = _getSyncBtn();
+        if (syncBtn) { syncBtn.disabled = true; syncBtn.textContent = 'Sync in progress...'; }
 
         _initModal();
         var modal = new bootstrap.Modal(document.getElementById('syncProgressModal'));
@@ -326,7 +364,8 @@
             summary.classList.remove('d-none');
             summary.innerHTML = '<span class="text-danger">Failed to reach server. Check the log.</span>';
             document.getElementById('syncCloseBtn').classList.remove('d-none');
-            if (syncBtn) { syncBtn.disabled = false; syncBtn.textContent = 'Sync Now'; }
+            var b = _getSyncBtn();
+            if (b) { b.disabled = false; b.textContent = 'Sync Now'; }
         });
     };
 }());

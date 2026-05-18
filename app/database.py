@@ -81,6 +81,11 @@ def _create_schema(conn: sqlite3.Connection):
             status          TEXT NOT NULL,
             error_detail    TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS fetched_orders (
+            order_id   TEXT PRIMARY KEY,
+            fetched_at TEXT NOT NULL
+        );
     """)
 
 

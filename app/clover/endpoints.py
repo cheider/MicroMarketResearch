@@ -26,12 +26,12 @@ def fetch_items(client) -> list:
 def fetch_orders(client, start_ts_ms: int, end_ts_ms: int) -> list:
     """
     Fetches orders within a UTC millisecond timestamp range.
-    Orders are returned without line items; caller should use
-    fetch_line_items per order for detail.
+    Line items are included inline via expand=lineItems.
     """
     results = []
     params = {
         "filter": [f"createdTime>={start_ts_ms}", f"createdTime<={end_ts_ms}"],
+        "expand": "lineItems",
     }
     for page in paginate(client, "orders", extra_params=params):
         results.extend(page)
