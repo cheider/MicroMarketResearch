@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Margin Report - NSC Micro Market{% endblock %}
+
+{% block content %}
+<div class="row mb-3 align-items-center">
+    <div class="col">
+        <h4 class="fw-semibold mb-0">Profit Margin Report</h4>
+        <small class="text-muted">{{ total_items }} total items, {{ items_with_cost }} with cost data, {{ no_cost_count }} without cost</small>
+    </div>
+    <div class="col-auto">
+        <form class="d-flex gap-2 align-items-center" method="get">
+            <label class="form-label mb-0 small">Threshold:</label>
+            <div class="input-group input-group-sm" style="width:120px">
+                <input type="number" class="form-control" name="threshold" step="0.01" min="0" max="1" value="{{ threshold_pct / 100 }}">
+                <span class="input-group-text">ratio</span>
+            </div>
+            <button class="btn btn-sm btn-outline-primary" type="submit">Apply</button>
+        </form>
+    </div>
+</div>
+
+{% if negative %}
+<div class="card mb-4 border-danger">
+    <div class="card-header bg-danger text-white fw-semibold">
+        Negative Margin ({{ negative|length }} items) — Selling Below Cost
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Item</th>
+                    <th class="text-end">Price</th>
+                    <th class="text-end">Cost</th>
+                    <th class="text-end">Margin</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in negative %}
+                <tr class="table-danger">
+                    <td><a href="/item/{{ row.item_id }}" class="text-decoration-none">{{ row.name }}</a></td>
+                    <td class="text-end">${{ "%.2f"|format(row.price_dollars) }}</td>
+                    <td class="text-end">${{ "%.2f"|format(row.cost_dollars) }}</td>
+                    <td class="text-end fw-bold text-danger">{{ row.margin_pct }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if low %}
+<div class="card mb-4 border-warning">
+    <div class="card-header bg-warning fw-semibold">
+        Low Margin ({{ low|length }} items) — Below {{ threshold_pct }}%
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Item</th>
+                    <th class="text-end">Price</th>
+                    <th class="text-end">Cost</th>
+                    <th class="text-end">Margin</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in low %}
+                <tr class="table-warning">
+                    <td><a href="/item/{{ row.item_id }}" class="text-decoration-none">{{ row.name }}</a></td>
+                    <td class="text-end">${{ "%.2f"|format(row.price_dollars) }}</td>
+                    <td class="text-end">${{ "%.2f"|format(row.cost_dollars) }}</td>
+                    <td class="text-end fw-bold">{{ row.margin_pct }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if acceptable %}
+<div class="card mb-4">
+    <div class="card-header fw-semibold">Acceptable Margin ({{ acceptable|length }} items)</div>
+    <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Item</th>
+                    <th class="text-end">Price</th>
+                    <th class="text-end">Cost</th>
+                    <th class="text-end">Margin</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in acceptable %}
+                <tr>
+                    <td><a href="/item/{{ row.item_id }}" class="text-decoration-none">{{ row.name }}</a></td>
+                    <td class="text-end">${{ "%.2f"|format(row.price_dollars) }}</td>
+                    <td class="text-end">${{ "%.2f"|format(row.cost_dollars) }}</td>
+                    <td class="text-end text-success fw-semibold">{{ row.margin_pct }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if not negative and not low and not acceptable %}
+<div class="alert alert-info">No item data available. Run a sync first.</div>
+{% endif %}
+{% endblock %}
