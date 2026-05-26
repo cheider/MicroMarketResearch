@@ -1,0 +1,17 @@
+{
+  "anchor_date": "2026-05-24",
+  "period_7d": {
+    "total_revenue_cents": 12497,
+    "units_sold": 71,
+    "active_items": 4
+  },
+  "period_30d": {
+    "min_total_revenue_cents": 40000
+  },
+  "forecast": {
+    "min_projected_revenue_cents": 10000
+  },
+  "reorder": {
+    "min_suggestions": 1
+  }
+}

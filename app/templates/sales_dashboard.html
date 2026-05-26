@@ -3,46 +3,27 @@
 
 {% block content %}
 <div class="page-title">Sales</div>
-<p class="page-subtitle">Revenue and unit performance for the selected period.</p>
+<p class="page-subtitle">{{ period_info.label }} — revenue and unit performance.</p>
 
-<!-- Filter bar -->
-<div class="filter-bar">
-    <div class="btn-group btn-group-sm" role="group">
-        <a href="?period=week{% if category_id %}&category_id={{ category_id }}{% endif %}"
-           class="btn {% if period == 'week' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
-            This Week
-        </a>
-        <a href="?period=lastweek{% if category_id %}&category_id={{ category_id }}{% endif %}"
-           class="btn {% if period == 'lastweek' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
-            Last Week
-        </a>
-    </div>
-
-    <form method="get" class="d-flex align-items-center gap-2 mb-0" id="cat-filter-form">
-        <input type="hidden" name="period" value="{{ period }}">
-        <select name="category_id" class="form-select form-select-sm" style="max-width:200px;"
-                onchange="document.getElementById('cat-filter-form').submit()">
-            <option value="">All Categories</option>
-            {% for cat in categories %}
-            <option value="{{ cat.category_id }}"
-                {% if category_id == cat.category_id %}selected{% endif %}>
-                {{ cat.name }}
-            </option>
-            {% endfor %}
-        </select>
-    </form>
-
-    <a href="/dashboards/sales/download?period={{ period }}{% if category_id %}&category_id={{ category_id }}{% endif %}"
-       class="btn btn-sm btn-outline-secondary ms-auto">Download CSV</a>
+{% if stats.total_revenue_cents == 0 and stats.units_sold == 0 %}
+<div class="alert alert-info py-2 mb-3">
+    No sales in this period. Click <strong>Sync Now</strong> in the sidebar, or run
+    <code>python scripts/seed_demo_data.py</code> for local demo data.
 </div>
+{% endif %}
 
-<!-- KPI tiles -->
+{% set filter_extra %}
+<a href="/dashboards/sales/download?period={{ period }}{% if category_id %}&category_id={{ category_id }}{% endif %}"
+   class="btn btn-sm btn-outline-secondary ms-auto">Download CSV</a>
+{% endset %}
+{% include "partials/period_filters.html" %}
+
 <div class="row g-3 mb-4">
     <div class="col-md-4">
         <div class="kpi-card green">
             <div class="kpi-label">Total Revenue</div>
             <div class="kpi-value">${{ "%.2f"|format(stats.total_revenue_cents / 100) }}</div>
-            <div class="kpi-sub">{{ period == 'lastweek' and 'Last 7 days (prev week)' or 'Last 7 days' }}</div>
+            <div class="kpi-sub">{{ period_info.label }}</div>
         </div>
     </div>
     <div class="col-md-4">
@@ -61,13 +42,11 @@
     </div>
 </div>
 
-<!-- Revenue chart -->
 <div class="content-card mb-4">
     <div class="content-card-title">Daily Revenue</div>
     <canvas id="revenueChart" height="90"></canvas>
 </div>
 
-<!-- Lower tiles -->
 <div class="row g-3">
     <div class="col-lg-5">
         <div class="content-card h-100">

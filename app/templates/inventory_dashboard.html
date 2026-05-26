@@ -3,23 +3,20 @@
 
 {% block content %}
 <div class="page-title">Inventory Turnover</div>
-<p class="page-subtitle">Stock levels, turnover rates, and low-stock alerts.</p>
+<p class="page-subtitle">{{ period_info.label }} — stock, turnover, and low-stock alerts.</p>
 
-<!-- Filter bar -->
-<div class="filter-bar">
-    <div class="btn-group btn-group-sm" role="group">
-        <a href="?period=week"
-           class="btn {% if period == 'week' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
-            This Week
-        </a>
-        <a href="?period=lastweek"
-           class="btn {% if period == 'lastweek' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
-            Last Week
-        </a>
-    </div>
-    <a href="/dashboards/inventory/download?period={{ period }}"
-       class="btn btn-sm btn-outline-secondary ms-auto">Download CSV</a>
+{% if stats.total_stock_units == 0 and not by_category %}
+<div class="alert alert-info py-2 mb-3">
+    No inventory snapshots yet. Run a sync, or use <code>python scripts/seed_demo_data.py</code> for demo stock data.
 </div>
+{% endif %}
+
+{% set show_category = false %}
+{% set filter_extra %}
+<a href="/dashboards/inventory/download?period={{ period }}"
+   class="btn btn-sm btn-outline-secondary ms-auto">Download CSV</a>
+{% endset %}
+{% include "partials/period_filters.html" %}
 
 <!-- KPI tiles -->
 <div class="row g-3 mb-4">

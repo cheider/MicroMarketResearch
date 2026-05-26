@@ -86,6 +86,15 @@ def _create_schema(conn: sqlite3.Connection):
             order_id   TEXT PRIMARY KEY,
             fetched_at TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS academic_events (
+            event_id    TEXT PRIMARY KEY,
+            label       TEXT NOT NULL,
+            start_date  TEXT NOT NULL,
+            end_date    TEXT NOT NULL,
+            event_type  TEXT NOT NULL,
+            created_at  TEXT NOT NULL
+        );
     """)
 
 

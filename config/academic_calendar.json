@@ -1,0 +1,27 @@
+{
+  "term": "2025-fall",
+  "semester_start": "2025-08-15",
+  "events": [
+    {
+      "id": "midterm_1",
+      "label": "Midterm week 1",
+      "start": "2025-10-13",
+      "end": "2025-10-17",
+      "type": "midterm"
+    },
+    {
+      "id": "spring_break",
+      "label": "Spring break",
+      "start": "2026-03-09",
+      "end": "2026-03-13",
+      "type": "break"
+    },
+    {
+      "id": "finals",
+      "label": "Finals week",
+      "start": "2025-12-09",
+      "end": "2025-12-13",
+      "type": "finals"
+    }
+  ]
+}

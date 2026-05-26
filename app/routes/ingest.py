@@ -64,7 +64,7 @@ def trigger_ingest():
     client = current_app.extensions["clover_client"]
     body = request.get_json(silent=True) or {}
     mode = body.get("mode", "incremental")
-    days = int(body.get("days", 30))
+    days = int(body.get("days", current_app.config.get("INGEST_LOOKBACK_DAYS", 90)))
 
     job_id = str(uuid.uuid4())
     with _jobs_lock:

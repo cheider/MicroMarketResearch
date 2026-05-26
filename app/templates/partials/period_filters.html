@@ -1,0 +1,34 @@
+{# period, category_id (optional), categories (optional), show_category (default true) #}
+<div class="filter-bar">
+    <div class="btn-group btn-group-sm" role="group">
+        {% set presets = ux.dashboard_period_presets if ux is defined else [
+            ('week', '7d'), ('30d', '30d'), ('90d', '90d'), ('semester', 'Semester'), ('lastweek', 'Prior week')
+        ] %}
+        {% for val, label in presets %}
+        <a href="?period={{ val }}{% if category_id is defined and category_id %}&category_id={{ category_id }}{% endif %}"
+           class="btn {% if period == val or (val == 'week' and period in ('week', '7d')) %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+            {{ label }}
+        </a>
+        {% endfor %}
+    </div>
+
+    {% if show_category is not defined or show_category %}
+    {% if categories is defined and categories %}
+    <form method="get" class="d-flex align-items-center gap-2 mb-0" id="cat-filter-form">
+        <input type="hidden" name="period" value="{{ period }}">
+        <select name="category_id" class="form-select form-select-sm" style="max-width:200px;"
+                onchange="document.getElementById('cat-filter-form').submit()">
+            <option value="">All Categories</option>
+            {% for cat in categories %}
+            <option value="{{ cat.category_id }}"
+                {% if category_id is defined and category_id == cat.category_id %}selected{% endif %}>
+                {{ cat.name }}
+            </option>
+            {% endfor %}
+        </select>
+    </form>
+    {% endif %}
+    {% endif %}
+
+    {% if filter_extra is defined %}{{ filter_extra }}{% endif %}
+</div>

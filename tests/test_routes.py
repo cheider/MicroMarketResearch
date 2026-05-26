@@ -21,6 +21,24 @@ class TestDashboardRoute:
         response = client.get("/", follow_redirects=True)
         assert b"NSC Micro Market" in response.data
 
+    def test_sidebar_includes_analysis_links(self, client):
+        response = client.get("/dashboards/sales")
+        assert response.status_code == 200
+        assert b"/analysis/insights" in response.data
+        assert b"/analysis/margins" in response.data
+        assert b"/analysis/shrinkage" in response.data
+        assert b"/analysis/velocity" in response.data
+
+
+class TestInsightsRoute:
+    def test_insights_returns_200(self, client):
+        response = client.get("/analysis/insights")
+        assert response.status_code == 200
+
+    def test_insights_accepts_period(self, client):
+        response = client.get("/analysis/insights?period=30d")
+        assert response.status_code == 200
+
 
 class TestIngestStatusRoute:
     def test_returns_200_with_no_sync_history(self, client):

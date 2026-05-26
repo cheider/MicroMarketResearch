@@ -10,26 +10,12 @@ from datetime import date, timedelta
 import pandas as pd
 
 from app.database import get_connection
+from app.analysis.periods import resolve_period
 
 
-# ---------------------------------------------------------------------------
-# Period helpers
-# ---------------------------------------------------------------------------
-
-def _period_dates(period: str) -> tuple[str, str]:
-    """Returns (start_iso, end_iso) for the requested period."""
-    today = date.today()
-    if period == "lastweek":
-        end = today - timedelta(days=7)
-        start = end - timedelta(days=6)
-    else:
-        start = today - timedelta(days=6)
-        end = today
-    return start.isoformat(), end.isoformat()
-
-
-def _period_days(period: str) -> int:
-    return 7
+def _period_bounds(period: str) -> tuple[str, str, int]:
+    info = resolve_period(period)
+    return info["start"], info["end"], info["day_count"]
 
 
 # ---------------------------------------------------------------------------
@@ -42,7 +28,7 @@ def get_sales_stats(period: str = "week", category_id: str = None) -> dict:
 
     Keys: total_revenue_cents, units_sold, active_items, daily_labels, daily_values
     """
-    start, end = _period_dates(period)
+    start, end, _ = _period_bounds(period)
 
     with get_connection() as conn:
         params: dict = {"start": start, "end": end}
@@ -95,7 +81,7 @@ def get_sales_by_category(period: str = "week", category_id: str = None) -> list
 
     Each row: {category_id, name, revenue_cents, units_sold}
     """
-    start, end = _period_dates(period)
+    start, end, _ = _period_bounds(period)
 
     cat_where = ""
     params: dict = {"start": start, "end": end}
@@ -136,7 +122,7 @@ def get_top_products(period: str = "week", top_n: int = 10, category_id: str = N
 
     Each row: {item_id, name, units_sold, revenue_cents}
     """
-    start, end = _period_dates(period)
+    start, end, _ = _period_bounds(period)
 
     cat_where = ""
     params: dict = {"start": start, "end": end, "top_n": top_n}
@@ -181,8 +167,7 @@ def get_inventory_stats(period: str = "week") -> dict:
 
     Keys: turnover_rate, days_on_hand, low_stock_count, total_stock_units
     """
-    start, end = _period_dates(period)
-    period_days = _period_days(period)
+    start, end, period_days = _period_bounds(period)
 
     with get_connection() as conn:
         # Latest snapshot quantity per item
@@ -268,7 +253,7 @@ def get_turnover_by_category(period: str = "week") -> list:
 
     Each row: {category_id, name, units_sold, avg_stock, turnover_rate}
     """
-    start, end = _period_dates(period)
+    start, end, _ = _period_bounds(period)
 
     with get_connection() as conn:
         stock_df = pd.read_sql(
@@ -394,13 +379,11 @@ def get_profit_stats(period: str = "week", category_id: str = None) -> dict:
     Keys: gross_profit_cents, profit_margin_pct, total_costs_cents,
           no_cost_count, daily_labels, daily_values
     """
-    start, end = _period_dates(period)
+    start, end, _ = _period_bounds(period)
 
-    cat_join = ""
     cat_where = ""
     params: dict = {"start": start, "end": end}
     if category_id:
-        cat_join = ""  # items already joined below
         cat_where = "AND i.category_id = :category_id"
         params["category_id"] = category_id
 
@@ -465,7 +448,7 @@ def get_profit_by_category(period: str = "week") -> list:
 
     Each row: {category_id, name, revenue_cents, cost_cents, margin_pct}
     """
-    start, end = _period_dates(period)
+    start, end, _ = _period_bounds(period)
 
     with get_connection() as conn:
         df = pd.read_sql(

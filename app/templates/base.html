@@ -68,6 +68,12 @@
             border-left-color: #4f8ef7;
             background-color: #252932;
         }
+        .sidebar-meta {
+            padding: 10px 16px 0 16px;
+            font-size: 0.72rem;
+            color: #9ca3af;
+            line-height: 1.35;
+        }
         .sidebar-bottom {
             margin-top: auto;
             padding: 16px;
@@ -155,7 +161,36 @@
         <a class="sidebar-link {% if '/dashboards/profit' in request.path %}active{% endif %}"
            href="/dashboards/profit">Profit</a>
 
+        {% if ux.show_insights_nav or ux.show_analysis_nav %}
+        <div class="sidebar-section">Analysis</div>
+        {% if ux.show_insights_nav %}
+        <a class="sidebar-link {% if '/analysis/insights' in request.path %}active{% endif %}"
+           href="/analysis/insights">Insights</a>
+        {% endif %}
+        {% if ux.show_analysis_nav %}
+        <a class="sidebar-link {% if '/analysis/margins' in request.path %}active{% endif %}"
+           href="/analysis/margins">Margins</a>
+        <a class="sidebar-link {% if '/analysis/shrinkage' in request.path %}active{% endif %}"
+           href="/analysis/shrinkage">Shrinkage</a>
+        <a class="sidebar-link {% if '/analysis/velocity' in request.path %}active{% endif %}"
+           href="/analysis/velocity">Velocity</a>
+        {% endif %}
+        {% endif %}
+
         <div class="sidebar-bottom">
+            <form method="post" action="/settings/ux" class="mb-2">
+                <input type="hidden" name="next" value="{{ request.full_path }}">
+                <label class="form-label text-muted mb-1" style="font-size:0.7rem;">UI demo preset</label>
+                <select name="ux_variant" class="form-select form-select-sm"
+                        onchange="this.form.submit()" title="Compare UI options for team review">
+                    {% for v in ux_variants %}
+                    <option value="{{ v.id }}" {% if v.id == ux_variant_id %}selected{% endif %}>{{ v.label }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            <div class="sidebar-meta" title="{{ data_freshness_note }}">
+                {{ last_sync_label }}
+            </div>
             <a class="sidebar-link {% if '/settings' in request.path %}active{% endif %}"
                href="/settings">Settings</a>
             <button class="btn btn-primary btn-sm w-100 mt-2"
@@ -346,7 +381,7 @@
         fetch('/ingest', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({mode: mode, days: 30})
+            body: JSON.stringify({mode: mode, days: {{ config.get('INGEST_LOOKBACK_DAYS', 90) }}})
         })
         .then(function (r) { return r.json(); })
         .then(function (data) {

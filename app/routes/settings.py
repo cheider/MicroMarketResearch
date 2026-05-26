@@ -3,11 +3,13 @@ import os
 from dotenv import set_key
 from flask import (
     Blueprint, render_template, request,
-    redirect, url_for, flash, current_app,
+    redirect, url_for, flash, current_app, make_response,
 )
 
 from app.clover.client import CloverClient
 from app.database import get_connection
+from app.analysis.calendar import get_all_events, upsert_academic_event, delete_academic_event
+from app.ux.variants import COOKIE_NAME, get_variant
 
 settings_bp = Blueprint("settings", __name__)
 
@@ -49,6 +51,8 @@ def settings():
         is_custom=is_custom,
         sync_log=sync_log,
         token_is_set=bool(cfg.CLOVER_API_TOKEN),
+        calendar_events=get_all_events(),
+        ingest_lookback_days=cfg.INGEST_LOOKBACK_DAYS,
     )
 
 
@@ -102,4 +106,41 @@ def settings_save():
     else:
         flash("No changes detected.", "info")
 
+    return redirect(url_for("settings.settings"))
+
+
+@settings_bp.route("/settings/calendar", methods=["POST"])
+def settings_calendar_save():
+    event_id = request.form.get("event_id", "").strip()
+    label = request.form.get("label", "").strip()
+    start_date = request.form.get("start_date", "").strip()
+    end_date = request.form.get("end_date", "").strip()
+    event_type = request.form.get("event_type", "other").strip()
+
+    if not all([event_id, label, start_date, end_date]):
+        flash("Calendar event requires ID, label, start, and end dates.", "danger")
+        return redirect(url_for("settings.settings"))
+
+    upsert_academic_event(event_id, label, start_date, end_date, event_type)
+    flash(f"Calendar event '{label}' saved.", "success")
+    return redirect(url_for("settings.settings"))
+
+
+@settings_bp.route("/settings/ux", methods=["POST"])
+def settings_ux_variant():
+    variant_id = request.form.get("ux_variant", "").strip()
+    v = get_variant(variant_id)
+    flash(f"UI preset: {v.label}", "info")
+    next_url = request.form.get("next") or url_for("dashboards.sales_dashboard")
+    resp = make_response(redirect(next_url))
+    resp.set_cookie(COOKIE_NAME, v.id, max_age=60 * 60 * 24 * 30, samesite="Lax")
+    return resp
+
+
+@settings_bp.route("/settings/calendar/delete", methods=["POST"])
+def settings_calendar_delete():
+    event_id = request.form.get("event_id", "").strip()
+    if event_id:
+        delete_academic_event(event_id)
+        flash("Calendar event removed.", "success")
     return redirect(url_for("settings.settings"))

@@ -1,63 +1,50 @@
 {% extends "base.html" %}
-{% block title %}Shrinkage Report - NSC Micro Market{% endblock %}
+{% block title %}Shrinkage — NSC Micro Market{% endblock %}
 
 {% block content %}
-<div class="row mb-3 align-items-center">
-    <div class="col">
-        <h4 class="fw-semibold mb-0">Inventory Shrinkage Report</h4>
-        <small class="text-muted">Lookback window: {{ days }} days. Positive shrinkage means stock is lower than sales records account for.</small>
-    </div>
-    <div class="col-auto">
-        <form class="d-flex gap-2 align-items-center" method="get">
-            <label class="form-label mb-0 small">Days:</label>
-            <input type="number" class="form-control form-control-sm" name="days" min="1" max="365" value="{{ days }}" style="width:80px">
-            <button class="btn btn-sm btn-outline-primary" type="submit">Apply</button>
-        </form>
-    </div>
-</div>
+<div class="page-title">Inventory Shrinkage</div>
+<p class="page-subtitle">Last {{ days }} days — positive shrinkage means stock fell faster than recorded sales.</p>
+
+<form class="filter-bar" method="get">
+    <label class="small text-muted mb-0">Lookback days</label>
+    <input type="number" class="form-control form-control-sm" name="days" min="1" max="365" value="{{ days }}" style="width:80px">
+    <button class="btn btn-sm btn-primary" type="submit">Apply</button>
+</form>
 
 {% if alert_rows %}
-<div class="alert alert-danger">
-    {{ alert_rows|length }} item(s) show unexplained stock loss in the last {{ days }} days.
-</div>
+<div class="alert alert-danger py-2">{{ alert_rows|length }} item(s) with unexplained stock loss.</div>
 {% endif %}
 
 {% if rows %}
-<div class="card">
-    <div class="card-body p-0">
-        <table class="table table-sm table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Item</th>
-                    <th class="text-end">Opening Stock</th>
-                    <th class="text-end">Units Sold</th>
-                    <th class="text-end">Expected</th>
-                    <th class="text-end">Actual</th>
-                    <th class="text-end">Shrinkage Units</th>
-                    <th class="text-end">Shrinkage Value</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for row in rows %}
-                <tr class="{{ 'table-danger' if row.shrinkage_units > 0 else '' }}">
-                    <td><a href="/item/{{ row.item_id }}" class="text-decoration-none">{{ row.name }}</a></td>
-                    <td class="text-end">{{ row.opening_stock }}</td>
-                    <td class="text-end">{{ row.units_sold }}</td>
-                    <td class="text-end">{{ row.expected_stock }}</td>
-                    <td class="text-end">{{ row.closing_stock }}</td>
-                    <td class="text-end fw-bold {{ 'text-danger' if row.shrinkage_units > 0 else 'text-success' }}">
-                        {{ row.shrinkage_units }}
-                    </td>
-                    <td class="text-end {{ 'text-danger' if row.shrinkage_value_cents > 0 else '' }}">
-                        ${{ "%.2f"|format(row.shrinkage_value_cents / 100) }}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+<div class="content-card">
+    <table class="table table-sm table-hover mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>Item</th>
+                <th class="text-end">Opening</th>
+                <th class="text-end">Sold</th>
+                <th class="text-end">Expected</th>
+                <th class="text-end">Actual</th>
+                <th class="text-end">Shrink units</th>
+                <th class="text-end">Value</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr class="{{ 'table-danger' if row.shrinkage_units > 0 else '' }}">
+                <td><a href="/item/{{ row.item_id }}" class="text-decoration-none">{{ row.name }}</a></td>
+                <td class="text-end">{{ row.opening_stock }}</td>
+                <td class="text-end">{{ row.units_sold }}</td>
+                <td class="text-end">{{ row.expected_stock }}</td>
+                <td class="text-end">{{ row.closing_stock }}</td>
+                <td class="text-end fw-bold">{{ row.shrinkage_units }}</td>
+                <td class="text-end">${{ "%.2f"|format(row.shrinkage_value_cents / 100) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </div>
 {% else %}
-<div class="alert alert-info">No shrinkage data available. At least two stock snapshots are required to compute shrinkage. Run a sync now and again after a period of sales.</div>
+<div class="alert alert-info">Need at least two stock snapshots in this window. Sync twice over a sales period.</div>
 {% endif %}
 {% endblock %}

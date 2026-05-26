@@ -8,6 +8,7 @@ from datetime import date
 import pandas as pd
 from flask import Blueprint, render_template, request, make_response
 
+from app.analysis.periods import normalize_period, resolve_period
 from app.analysis.dashboard_analytics import (
     get_all_categories,
     get_sales_stats,
@@ -27,8 +28,7 @@ dashboards_bp = Blueprint("dashboards", __name__)
 
 
 def _period_param() -> str:
-    period = request.args.get("period", "week")
-    return period if period in ("week", "lastweek") else "week"
+    return normalize_period(request.args.get("period", "week"))
 
 
 def _category_param() -> str | None:
@@ -53,6 +53,7 @@ def sales_dashboard():
     return render_template(
         "sales_dashboard.html",
         period=period,
+        period_info=resolve_period(period),
         category_id=category_id,
         stats=stats,
         by_category=by_category,
@@ -100,6 +101,7 @@ def inventory_dashboard():
     return render_template(
         "inventory_dashboard.html",
         period=period,
+        period_info=resolve_period(period),
         stats=stats,
         by_category=by_category,
         turnover_by_cat=turnover_by_cat,
@@ -147,6 +149,7 @@ def profit_dashboard():
     return render_template(
         "profit_dashboard.html",
         period=period,
+        period_info=resolve_period(period),
         category_id=category_id,
         stats=stats,
         by_category=by_category,

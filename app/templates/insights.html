@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}Insights — NSC Micro Market{% endblock %}
+
+{% block content %}
+<div class="page-title">Insights</div>
+<p class="page-subtitle">Seasonality, academic calendar, and reorder planning for {{ period_info.label }}.</p>
+
+{% if 'active_events' in ux.insights_sections and summary.active_events %}
+<div class="alert alert-warning py-2 mb-3">
+    <strong>Academic period active:</strong>
+    {% for ev in summary.active_events %}{{ ev.label }}{% if not loop.last %}, {% endif %}{% endfor %}
+</div>
+{% endif %}
+
+<form method="get" class="filter-bar mb-3">
+    <label class="small text-muted mb-0">Period</label>
+    <select name="period" class="form-select form-select-sm" style="max-width:120px" onchange="this.form.submit()">
+        {% for val, label in ux.insights_period_presets %}
+        <option value="{{ val }}" {% if period == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+    {% if 'calendar' in ux.insights_sections and events %}
+    <label class="small text-muted mb-0 ms-2">Compare event</label>
+    <select name="event_id" class="form-select form-select-sm" style="max-width:200px" onchange="this.form.submit()">
+        {% for ev in events %}
+        <option value="{{ ev.id }}" {% if ev.id == selected_event_id %}selected{% endif %}>{{ ev.label }}</option>
+        {% endfor %}
+    </select>
+    {% endif %}
+    {% if 'reorder' in ux.insights_sections %}
+    <a href="/analysis/insights/reorder/download" class="btn btn-sm btn-outline-secondary ms-auto">Reorder CSV</a>
+    {% endif %}
+</form>
+
+<div class="row g-3 mb-4">
+    {% if 'wow' in ux.insights_sections %}
+    <div class="col-md-3">
+        <div class="kpi-card">
+            <div class="kpi-label">Week-over-week revenue</div>
+            <div class="kpi-value">{{ wow.revenue_change_pct }}%</div>
+            <div class="kpi-sub">${{ "%.2f"|format(wow.current_revenue_cents / 100) }} this week</div>
+        </div>
+    </div>
+    {% endif %}
+    {% if 'forecast' in ux.insights_sections %}
+    <div class="col-md-3">
+        <div class="kpi-card green">
+            <div class="kpi-label">14-day revenue forecast</div>
+            <div class="kpi-value">${{ "%.2f"|format(forecast.total_projected_revenue_cents / 100) }}</div>
+            <div class="kpi-sub">Naive 7-day avg × {{ forecast.horizon_days }} days</div>
+        </div>
+    </div>
+    {% endif %}
+    {% if 'stockout' in ux.insights_sections %}
+    <div class="col-md-3">
+        <div class="kpi-card red">
+            <div class="kpi-label">Stockout risk</div>
+            <div class="kpi-value">{{ stockout|length }}</div>
+            <div class="kpi-sub">Items under 3 days of stock</div>
+        </div>
+    </div>
+    {% endif %}
+    {% if 'calendar' in ux.insights_sections %}
+    <div class="col-md-3">
+        <div class="kpi-card orange">
+            <div class="kpi-label">Exam-period uplift</div>
+            <div class="kpi-value">
+                {% if calendar_cmp %}{{ calendar_cmp.uplift_pct }}%{% else %}—{% endif %}
+            </div>
+            <div class="kpi-sub">{% if calendar_cmp %}{{ calendar_cmp.event.label }}{% else %}Select an event{% endif %}</div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="row g-3 mb-4">
+    {% if 'dow' in ux.insights_sections %}
+    <div class="col-lg-6">
+        <div class="content-card">
+            <div class="content-card-title">Avg revenue by day of week</div>
+            <canvas id="dowChart" height="100"></canvas>
+        </div>
+    </div>
+    {% endif %}
+    {% if 'mix' in ux.insights_sections %}
+    <div class="col-lg-6">
+        <div class="content-card">
+            <div class="content-card-title">Category mix shift (share % points)</div>
+            {% if mix %}
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light"><tr><th>Category</th><th class="text-end">Current</th><th class="text-end">Prior</th><th class="text-end">Shift</th></tr></thead>
+                <tbody>
+                    {% for row in mix[:8] %}
+                    <tr>
+                        <td>{{ row.name }}</td>
+                        <td class="text-end">{{ row.current_share_pct }}%</td>
+                        <td class="text-end">{{ row.prior_share_pct }}%</td>
+                        <td class="text-end {% if row.share_shift_pct > 0 %}text-success{% elif row.share_shift_pct < 0 %}text-danger{% endif %}">{{ row.share_shift_pct }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="text-muted small mb-0">Not enough history for mix comparison.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% if 'reorder' in ux.insights_sections %}
+<div class="content-card mb-4">
+    <div class="content-card-title">Reorder suggestions (7-day cover target)</div>
+    {% if reorder %}
+    <table class="table table-sm table-hover mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>Item</th>
+                <th class="text-end">Avg/day</th>
+                <th class="text-end">On hand</th>
+                <th class="text-end">Days left</th>
+                <th class="text-end">Order qty</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in reorder[:15] %}
+            <tr class="{% if row.days_until_stockout is not none and row.days_until_stockout < 3 %}table-warning{% endif %}">
+                <td><a href="/item/{{ row.item_id }}" class="text-decoration-none">{{ row.name }}</a></td>
+                <td class="text-end">{{ row.avg_daily_units }}</td>
+                <td class="text-end">{{ row.on_hand }}</td>
+                <td class="text-end">{{ row.days_until_stockout if row.days_until_stockout is not none else '—' }}</td>
+                <td class="text-end fw-semibold">{{ row.suggested_reorder_qty }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted small mb-0">No velocity data yet. Run a longer sync (90+ days recommended).</p>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if 'calendar' in ux.insights_sections and calendar_cmp and calendar_cmp.top_items %}
+<div class="content-card">
+    <div class="content-card-title">Top sellers during {{ calendar_cmp.event.label }}</div>
+    <table class="table table-sm table-hover mb-0">
+        <thead class="table-light"><tr><th>Item</th><th class="text-end">Event revenue</th></tr></thead>
+        <tbody>
+            {% for row in calendar_cmp.top_items %}
+            <tr>
+                <td><a href="/item/{{ row.item_id }}" class="text-decoration-none">{{ row.name }}</a></td>
+                <td class="text-end">${{ "%.2f"|format(row.event_rev / 100) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if 'dow' in ux.insights_sections %}
+<script>
+(function () {
+    const dowLabels = {{ dow.labels | tojson }};
+    const dowRev = {{ dow.avg_revenue | tojson }};
+    new Chart(document.getElementById('dowChart'), {
+        type: 'bar',
+        data: {
+            labels: dowLabels,
+            datasets: [{
+                label: 'Avg daily revenue ($)',
+                data: dowRev,
+                backgroundColor: 'rgba(111,66,193,0.7)',
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true } }
+        }
+    });
+}());
+</script>
+{% endif %}
+{% endblock %}
