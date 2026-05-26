@@ -1,0 +1,10 @@
+.env
+.git
+__pycache__
+*.pyc
+*.pyo
+*.db
+logs/
+tests/
+*.md
+.gitignore
