@@ -27,6 +27,7 @@ def create_app(config=None):
     from app.routes.velocity import velocity_bp
     from app.routes.item import item_bp
     from app.routes.settings import settings_bp
+    from app.routes.quarters import quarters_bp
 
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(dashboards_bp)
@@ -36,5 +37,6 @@ def create_app(config=None):
     app.register_blueprint(velocity_bp)
     app.register_blueprint(item_bp)
     app.register_blueprint(settings_bp)
+    app.register_blueprint(quarters_bp)
 
     return app

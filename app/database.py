@@ -86,6 +86,16 @@ def _create_schema(conn: sqlite3.Connection):
             order_id   TEXT PRIMARY KEY,
             fetched_at TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS quarters (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            school_year TEXT NOT NULL,
+            season      TEXT NOT NULL
+                CHECK(season IN ('Spring','Summer','Fall','Winter')),
+            start_date  TEXT NOT NULL,
+            end_date    TEXT NOT NULL,
+            UNIQUE(school_year, season)
+        );
     """)
 
 
