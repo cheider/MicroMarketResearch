@@ -341,7 +341,7 @@
             });
     }
 
-    window.triggerIngest = function (mode) {
+    window.triggerIngest = function (mode, days) {
         var syncBtn = _getSyncBtn();
         if (syncBtn) { syncBtn.disabled = true; syncBtn.textContent = 'Sync in progress...'; }
 
@@ -352,7 +352,7 @@
         fetch('/ingest', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({mode: mode, days: 30})
+            body: JSON.stringify({mode: mode, days: days || 30})
         })
         .then(function (r) { return r.json(); })
         .then(function (data) {
