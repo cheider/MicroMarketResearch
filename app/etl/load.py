@@ -102,10 +102,18 @@ def upsert_items(items: list):
 def upsert_daily_sales(sales_rows: list):
     """
     Insert or accumulate daily sales aggregates.
-    Uses INSERT OR REPLACE so re-running an ingest for the same date
-    replaces the prior aggregate rather than double-counting.
+    Rows whose item_id has no matching item are silently dropped — Clover
+    sometimes returns line items for items that the items endpoint omits
+    (deleted or restricted items), which would cause a FK violation.
     """
     with get_connection() as conn:
+        known_ids = {
+            row[0]
+            for row in conn.execute("SELECT item_id FROM items").fetchall()
+        }
+        valid_rows = [r for r in sales_rows if r["item_id"] in known_ids]
+        if not valid_rows:
+            return
         conn.executemany(
             """
             INSERT INTO daily_sales (item_id, sale_date, units_sold, gross_revenue_cents)
@@ -114,7 +122,7 @@ def upsert_daily_sales(sales_rows: list):
                 units_sold          = excluded.units_sold,
                 gross_revenue_cents = excluded.gross_revenue_cents
             """,
-            sales_rows,
+            valid_rows,
         )
 
 
@@ -138,6 +146,10 @@ def insert_stock_snapshots(stocks: list):
     """Batch insert stock snapshots. Snapshots are append-only."""
     now = _now_utc()
     with get_connection() as conn:
+        known_ids = {
+            row[0]
+            for row in conn.execute("SELECT item_id FROM items").fetchall()
+        }
         conn.executemany(
             """
             INSERT INTO stock_snapshots (item_id, snapshot_ts, quantity)
@@ -150,7 +162,7 @@ def insert_stock_snapshots(stocks: list):
                     "quantity": s["quantity"],
                 }
                 for s in stocks
-                if s.get("item_id") is not None
+                if s.get("item_id") in known_ids
             ],
         )
 
