@@ -8,7 +8,16 @@ from flask import (
 
 from app.clover.client import CloverClient
 from app.database import get_connection
-from app.analysis.calendar import get_all_events, upsert_academic_event, delete_academic_event
+from datetime import date
+
+from app.analysis.calendar import (
+    get_all_events,
+    get_calendar_meta,
+    upsert_academic_event,
+    delete_academic_event,
+    save_calendar_json,
+    sync_estimated_events_to_db,
+)
 from app.ux.variants import COOKIE_NAME, get_variant
 
 settings_bp = Blueprint("settings", __name__)
@@ -44,6 +53,7 @@ def settings():
     is_custom = base_url not in _KNOWN_BASE_URLS
     sync_log = _get_sync_log()
 
+    cal = get_calendar_meta()
     return render_template(
         "settings.html",
         merchant_id=cfg.CLOVER_MERCHANT_ID,
@@ -52,6 +62,7 @@ def settings():
         sync_log=sync_log,
         token_is_set=bool(cfg.CLOVER_API_TOKEN),
         calendar_events=get_all_events(),
+        calendar_meta=cal,
         ingest_lookback_days=cfg.INGEST_LOOKBACK_DAYS,
     )
 
@@ -105,6 +116,52 @@ def settings_save():
         flash(f"Settings saved: {', '.join(changed)}.", "success")
     else:
         flash("No changes detected.", "info")
+
+    return redirect(url_for("settings.settings"))
+
+
+@settings_bp.route("/settings/calendar/term", methods=["POST"])
+def settings_calendar_term():
+    term = request.form.get("term_label", "").strip()
+    quarter_start = request.form.get("quarter_start", "").strip()
+    quarter_end = request.form.get("quarter_end", "").strip()
+    auto_estimate = request.form.get("auto_estimate_events") == "on"
+    sync_now = request.form.get("sync_estimates") == "on"
+
+    if not quarter_start or not quarter_end:
+        flash("Quarter start and end dates are required.", "danger")
+        return redirect(url_for("settings.settings"))
+
+    try:
+        date.fromisoformat(quarter_start)
+        date.fromisoformat(quarter_end)
+    except ValueError:
+        flash("Dates must be YYYY-MM-DD.", "danger")
+        return redirect(url_for("settings.settings"))
+
+    save_calendar_json(term, quarter_start, quarter_end, auto_estimate)
+
+    set_key(ENV_PATH, "SEMESTER_START_DATE", quarter_start)
+    os.environ["SEMESTER_START_DATE"] = quarter_start
+    set_key(ENV_PATH, "TERM_END_DATE", quarter_end)
+    os.environ["TERM_END_DATE"] = quarter_end
+
+    if sync_now and auto_estimate:
+        try:
+            sync_estimated_events_to_db()
+            flash(
+                f"Term saved ({quarter_start} to {quarter_end}). "
+                "Estimated midterms, break, and finals written to the calendar.",
+                "success",
+            )
+        except ValueError as exc:
+            flash(f"Term dates saved but estimates failed: {exc}", "warning")
+    else:
+        flash(
+            f"Term saved ({quarter_start} to {quarter_end}). "
+            "Check preview below; use Save & sync estimates to load Insights.",
+            "success",
+        )
 
     return redirect(url_for("settings.settings"))
 

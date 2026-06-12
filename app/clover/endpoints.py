@@ -5,6 +5,13 @@ Transformation and privacy filtering happen in app/etl/transform.py.
 """
 
 from app.clover.paginator import paginate
+from app.clover.query_params import (
+    ITEMS_EXPAND,
+    LINE_ITEMS_EXPAND,
+    ORDERS_EXPAND,
+    created_time_filters,
+    merge_params,
+)
 
 
 def fetch_categories(client) -> list:
@@ -18,7 +25,7 @@ def fetch_categories(client) -> list:
 def fetch_items(client) -> list:
     """Fetches the full item catalog. Returns raw item dicts."""
     results = []
-    for page in paginate(client, "items", extra_params={"expand": "itemStock"}):
+    for page in paginate(client, "items", extra_params=ITEMS_EXPAND):
         results.extend(page)
     return results
 
@@ -29,10 +36,10 @@ def fetch_orders(client, start_ts_ms: int, end_ts_ms: int) -> list:
     Line items are included inline via expand=lineItems.
     """
     results = []
-    params = {
-        "filter": [f"createdTime>={start_ts_ms}", f"createdTime<={end_ts_ms}"],
-        "expand": "lineItems",
-    }
+    params = merge_params(
+        created_time_filters(start_ts_ms, end_ts_ms),
+        ORDERS_EXPAND,
+    )
     for page in paginate(client, "orders", extra_params=params):
         results.extend(page)
     return results
@@ -44,7 +51,7 @@ def fetch_line_items(client, order_id: str) -> list:
     for page in paginate(
         client,
         f"orders/{order_id}/line_items",
-        extra_params={"expand": "item"},
+        extra_params=LINE_ITEMS_EXPAND,
     ):
         results.extend(page)
     return results
@@ -65,9 +72,7 @@ def fetch_payments(client, start_ts_ms: int, end_ts_ms: int) -> list:
     are dropped by the transform layer before storage.
     """
     results = []
-    params = {
-        "filter": [f"createdTime>={start_ts_ms}", f"createdTime<={end_ts_ms}"],
-    }
+    params = created_time_filters(start_ts_ms, end_ts_ms)
     for page in paginate(client, "payments", extra_params=params):
         results.extend(page)
     return results

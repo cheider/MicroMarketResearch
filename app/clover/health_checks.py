@@ -8,6 +8,13 @@ No POST/PUT/DELETE. No PII in returned result dicts.
 from datetime import datetime, timedelta, timezone
 
 from app.clover.client import CloverClient, CloverAPIError
+from app.clover.query_params import (
+    ITEMS_EXPAND,
+    ORDERS_EXPAND,
+    created_time_filters,
+    merge_params,
+    page_params,
+)
 
 
 def _now_ms() -> int:
@@ -48,19 +55,19 @@ def _probe(name: str, fn) -> dict:
 
 
 def check_items_list(client: CloverClient) -> dict:
-    data = client.get("items", params={"limit": 1})
+    data = client.get("items", params=page_params(limit=1, offset=0))
     elements = data.get("elements") or []
     return {"count_returned": len(elements), "has_more": bool(data.get("href"))}
 
 
 def check_categories_list(client: CloverClient) -> dict:
-    data = client.get("categories", params={"limit": 1})
+    data = client.get("categories", params=page_params(limit=1, offset=0))
     elements = data.get("elements") or []
     return {"count_returned": len(elements)}
 
 
 def check_item_stocks_list(client: CloverClient) -> dict:
-    data = client.get("item_stocks", params={"limit": 1})
+    data = client.get("item_stocks", params=page_params(limit=1, offset=0))
     elements = data.get("elements") or []
     return {"count_returned": len(elements)}
 
@@ -70,11 +77,11 @@ def check_orders_window(client: CloverClient, days: int = 7) -> dict:
     start_ms = _days_ago_ms(days)
     data = client.get(
         "orders",
-        params={
-            "limit": 1,
-            "filter": [f"createdTime>={start_ms}", f"createdTime<={end_ms}"],
-            "expand": "lineItems",
-        },
+        params=merge_params(
+            page_params(limit=1, offset=0),
+            created_time_filters(start_ms, end_ms),
+            ORDERS_EXPAND,
+        ),
     )
     elements = data.get("elements") or []
     line_count = 0
@@ -93,17 +100,20 @@ def check_payments_window(client: CloverClient, days: int = 7) -> dict:
     start_ms = _days_ago_ms(days)
     data = client.get(
         "payments",
-        params={
-            "limit": 1,
-            "filter": [f"createdTime>={start_ms}", f"createdTime<={end_ms}"],
-        },
+        params=merge_params(
+            page_params(limit=1, offset=0),
+            created_time_filters(start_ms, end_ms),
+        ),
     )
     elements = data.get("elements") or []
     return {"days": days, "payments_returned": len(elements)}
 
 
 def check_items_with_stock_expand(client: CloverClient) -> dict:
-    data = client.get("items", params={"limit": 1, "expand": "itemStock"})
+    data = client.get(
+        "items",
+        params=merge_params(page_params(limit=1, offset=0), ITEMS_EXPAND),
+    )
     elements = data.get("elements") or []
     has_stock = False
     if elements and elements[0].get("itemStock") is not None:
@@ -112,7 +122,7 @@ def check_items_with_stock_expand(client: CloverClient) -> dict:
 
 
 def check_pagination_second_page(client: CloverClient) -> dict:
-    data = client.get("items", params={"limit": 1, "offset": 1})
+    data = client.get("items", params=page_params(limit=1, offset=1))
     return {"offset_1_count": len(data.get("elements") or [])}
 
 

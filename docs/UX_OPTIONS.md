@@ -56,7 +56,7 @@ We are not building this only to maximize profit. The market exists so students 
 | Velocity / sales | Stock what students actually buy |
 | Insights reorder | Popular items stay on the shelf |
 | Day-of-week chart | Staffing and ordering match when students shop |
-| Calendar / exam uplift | Plan around midterms and finals instead of flat averages |
+| Calendar / exam uplift | Set quarter start/end in Settings; app estimates midterm and finals weeks |
 | Category mix | Keep the assortment feeling like one market—not random one-offs; when you run a special, you can see if the rest of the mix supports it or dilutes it |
 
 ## When numbers update

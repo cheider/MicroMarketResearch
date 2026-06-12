@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.config import Config
 from app.clover.client import CloverClient, CloverAPIError
+from app.clover.query_params import page_params
 
 
 def _env_warnings(cfg: Config) -> list[str]:
@@ -45,7 +46,7 @@ def main():
 
     client = CloverClient(cfg)
     try:
-        data = client.get("items", params={"limit": 1})
+        data = client.get("items", params=page_params(limit=1, offset=0))
         n = len(data.get("elements", []))
         print(f"\nOK: Connected. Items endpoint returned {n} row(s).")
     except CloverAPIError as exc:

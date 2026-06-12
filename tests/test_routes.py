@@ -1,7 +1,7 @@
 import json
 import time
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import app.database as db_module
 
@@ -298,3 +298,59 @@ class TestSettingsRoute:
         )
         assert response.status_code == 200
         assert b"cannot be blank" in response.data
+
+    def test_settings_includes_stress_test_ui(self, client):
+        response = client.get("/settings")
+        assert b"Run stress tests" in response.data
+        assert b"stressProfile" in response.data
+
+
+class TestCloverStressRoutes:
+    def _wait_for_job(self, client, job_id, timeout=3.0):
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            resp = client.get(f"/api/clover-tests/progress/{job_id}")
+            data = json.loads(resp.data)
+            if data["overall_status"] in ("done", "error"):
+                return data
+            time.sleep(0.05)
+        raise TimeoutError(f"Job {job_id} did not complete within {timeout}s")
+
+    def test_profiles_list(self, client):
+        resp = client.get("/api/clover-tests/profiles")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert len(data["profiles"]) == 3
+
+    @patch("app.routes.clover_tests.run_stress_suite")
+    def test_start_and_complete_stress_job(self, mock_run, client):
+        mock_run.return_value = {
+            "profile": "light",
+            "profile_label": "Light",
+            "results": [{"name": "health_battery", "status": "pass", "requests": 7}],
+            "summary": {
+                "all_pass": True,
+                "passed": 1,
+                "warnings": 0,
+                "failed": 0,
+                "total_requests": 7,
+                "rate_limits_hit": 0,
+                "total_duration_ms": 100,
+                "total_checks": 1,
+            },
+        }
+        resp = client.post(
+            "/api/clover-tests/start",
+            data=json.dumps({"profile": "light"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 202
+        job_id = json.loads(resp.data)["job_id"]
+
+        final = self._wait_for_job(client, job_id)
+        assert final["overall_status"] == "done"
+        assert final["result"]["summary"]["all_pass"] is True
+
+    def test_progress_unknown_job_404(self, client):
+        resp = client.get("/api/clover-tests/progress/does-not-exist")
+        assert resp.status_code == 404

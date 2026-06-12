@@ -155,9 +155,112 @@
 </div>
 
 <div class="row g-4 mt-2">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+                <span>Clover API stress tests</span>
+                <span class="badge bg-secondary">read-only GETs</span>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">
+                    Simulates ingest-style traffic (pagination, bursts, parallel requests) to verify
+                    credentials and rate-limit handling. Does not write to the database.
+                </p>
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold" for="stressProfile">Profile</label>
+                        <select class="form-select form-select-sm" id="stressProfile">
+                            <option value="light">Light — quick smoke (~15–30 requests)</option>
+                            <option value="standard">Standard — pagination + parallel burst</option>
+                            <option value="heavy">Heavy — high volume (use sparingly)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="button" class="btn btn-outline-primary btn-sm w-100" id="stressRunBtn"
+                                onclick="startStressTests()" {% if not token_is_set %}disabled{% endif %}>
+                            Run stress tests
+                        </button>
+                    </div>
+                </div>
+                {% if not token_is_set %}
+                <p class="text-danger small mt-2 mb-0">Configure an API token above before running tests.</p>
+                {% endif %}
+                <div id="stressProgress" class="d-none mt-3">
+                    <div class="small text-muted mb-2" id="stressStatusLine">Starting…</div>
+                    <ul class="list-unstyled small mb-0" id="stressCheckList"></ul>
+                </div>
+                <div id="stressSummary" class="d-none mt-3 p-2 border rounded bg-light small"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mt-2">
+    <div class="col-12">
+        <div class="content-card">
+            <div class="content-card-title">Quarter / term dates</div>
+            <p class="text-muted small">
+                Set when the term starts and ends. The app estimates midterm weeks, a study break,
+                and finals from those dates (Mon–Fri windows). Semester filters on dashboards use this range.
+            </p>
+            <form method="post" action="/settings/calendar/term" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label small">Term label</label>
+                    <input type="text" class="form-control form-control-sm" name="term_label"
+                           value="{{ calendar_meta.term or '' }}" placeholder="2026-spring">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Quarter start</label>
+                    <input type="date" class="form-control form-control-sm" name="quarter_start" required
+                           value="{{ calendar_meta.quarter_start or '' }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Quarter end</label>
+                    <input type="date" class="form-control form-control-sm" name="quarter_end" required
+                           value="{{ calendar_meta.quarter_end or '' }}">
+                </div>
+                <div class="col-md-3">
+                    <div class="form-check mb-1">
+                        <input class="form-check-input" type="checkbox" name="auto_estimate_events" id="autoEst"
+                               {% if calendar_meta.auto_estimate_events %}checked{% endif %}>
+                        <label class="form-check-label small" for="autoEst">Estimate exam weeks</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="sync_estimates" id="syncEst" checked>
+                        <label class="form-check-label small" for="syncEst">Save &amp; sync estimates to calendar</label>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-sm btn-primary w-100">Save term</button>
+                </div>
+            </form>
+            {% if calendar_meta.estimated_preview %}
+            <p class="small fw-semibold mt-3 mb-1">Estimated schedule preview</p>
+            <table class="table table-sm mb-0">
+                <thead class="table-light"><tr><th>Event</th><th>Type</th><th>Dates</th></tr></thead>
+                <tbody>
+                    {% for ev in calendar_meta.estimated_preview %}
+                    <tr>
+                        <td>{{ ev.label }}</td>
+                        <td><span class="badge bg-info text-dark">{{ ev.type }}</span></td>
+                        <td class="small">{{ ev.start }} — {{ ev.end }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <p class="text-muted small mt-2 mb-0">
+                Heuristic: midterms ~35% and ~65% through the term, break ~50%, finals week of the end date.
+                Adjust individual events below if your campus differs.
+            </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mt-2">
     <div class="col-lg-5">
         <div class="content-card">
-            <div class="content-card-title">Add academic event</div>
+            <div class="content-card-title">Add academic event (manual)</div>
             <form method="post" action="/settings/calendar">
                 <div class="mb-2">
                     <label class="form-label small">Event ID</label>
@@ -246,6 +349,106 @@
             customInput.classList.add('d-none');
             customInput.value = '';
         }
+    }
+
+    var _stressPollTimer = null;
+
+    function _stressIcon(status) {
+        if (status === 'pass' || status === 'done') return '&#10003;';
+        if (status === 'warn') return '!';
+        if (status === 'fail' || status === 'error') return '&#10007;';
+        if (status === 'running') return '…';
+        return '·';
+    }
+
+    function _renderStressChecks(checks) {
+        var html = '';
+        Object.keys(checks || {}).forEach(function(name) {
+            var c = checks[name];
+            html += '<li><span class="me-2">' + _stressIcon(c.status) + '</span>' +
+                name + ' <span class="text-muted">(' + c.status + ')</span></li>';
+        });
+        document.getElementById('stressCheckList').innerHTML = html || '<li class="text-muted">Waiting…</li>';
+    }
+
+    function _renderStressSummary(result) {
+        if (!result || !result.summary) return;
+        var s = result.summary;
+        var el = document.getElementById('stressSummary');
+        el.classList.remove('d-none');
+        var ok = s.all_pass;
+        el.innerHTML =
+            '<strong>' + (ok ? 'All checks passed' : 'Some checks failed') + '</strong><br>' +
+            'Requests: ' + s.total_requests + ' · Rate limits (429): ' + s.rate_limits_hit +
+            ' · Duration: ' + s.total_duration_ms + ' ms<br>' +
+            'Pass: ' + s.passed + ' · Warn: ' + s.warnings + ' · Fail: ' + s.failed;
+        el.classList.toggle('border-success', ok);
+        el.classList.toggle('bg-success-subtle', ok);
+        el.classList.toggle('border-danger', !ok);
+        el.classList.toggle('bg-danger-subtle', !ok);
+    }
+
+    function _pollStressJob(jobId) {
+        fetch('/api/clover-tests/progress/' + jobId)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                document.getElementById('stressProgress').classList.remove('d-none');
+                _renderStressChecks(data.checks);
+                if (data.overall_status === 'running') {
+                    document.getElementById('stressStatusLine').textContent =
+                        'Running profile: ' + (data.profile || '');
+                    _stressPollTimer = setTimeout(function() { _pollStressJob(jobId); }, 800);
+                    return;
+                }
+                var btn = document.getElementById('stressRunBtn');
+                btn.disabled = false;
+                btn.textContent = 'Run stress tests';
+                if (data.overall_status === 'error') {
+                    document.getElementById('stressStatusLine').textContent =
+                        'Error: ' + (data.error_message || 'unknown');
+                    return;
+                }
+                document.getElementById('stressStatusLine').textContent = 'Complete.';
+                _renderStressSummary(data.result);
+            })
+            .catch(function(err) {
+                document.getElementById('stressStatusLine').textContent = 'Poll failed: ' + err;
+                document.getElementById('stressRunBtn').disabled = false;
+            });
+    }
+
+    function startStressTests() {
+        var profile = document.getElementById('stressProfile').value;
+        var btn = document.getElementById('stressRunBtn');
+        btn.disabled = true;
+        btn.textContent = 'Running…';
+        document.getElementById('stressSummary').classList.add('d-none');
+        document.getElementById('stressCheckList').innerHTML = '';
+        document.getElementById('stressStatusLine').textContent = 'Starting…';
+        document.getElementById('stressProgress').classList.remove('d-none');
+        if (_stressPollTimer) clearTimeout(_stressPollTimer);
+
+        fetch('/api/clover-tests/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profile: profile })
+        })
+        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+        .then(function(res) {
+            if (!res.ok) {
+                document.getElementById('stressStatusLine').textContent =
+                    res.data.error || 'Failed to start';
+                btn.disabled = false;
+                btn.textContent = 'Run stress tests';
+                return;
+            }
+            _pollStressJob(res.data.job_id);
+        })
+        .catch(function(err) {
+            document.getElementById('stressStatusLine').textContent = 'Start failed: ' + err;
+            btn.disabled = false;
+            btn.textContent = 'Run stress tests';
+        });
     }
 </script>
 {% endblock %}

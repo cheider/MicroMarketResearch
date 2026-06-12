@@ -31,21 +31,35 @@ def normalize_period(period: str) -> str:
     return "7d"
 
 
-def _semester_start() -> date:
-    env = os.environ.get("SEMESTER_START_DATE", "").strip()
-    if env:
-        return date.fromisoformat(env)
+def _term_bounds() -> tuple[date, date]:
+    env_start = os.environ.get("SEMESTER_START_DATE", "").strip()
+    env_end = os.environ.get("TERM_END_DATE", "").strip()
     try:
-        from app.analysis.calendar import get_calendar_meta
-        meta = get_calendar_meta()
-        if meta.get("semester_start"):
-            return date.fromisoformat(meta["semester_start"])
+        from app.analysis.calendar import get_term_bounds
+
+        qs, qe = get_term_bounds()
+        if qs and qe:
+            return qs, qe
+        if qs:
+            end = today()
+            return qs, end if end >= qs else qs
     except Exception:
         pass
+    if env_start:
+        start = date.fromisoformat(env_start)
+        if env_end:
+            return start, date.fromisoformat(env_end)
+        return start, today()
     t = today()
     if t.month >= 8:
-        return date(t.year, 8, 15)
-    return date(t.year, 1, 10)
+        start = date(t.year, 8, 15)
+    else:
+        start = date(t.year, 1, 10)
+    return start, t
+
+
+def _semester_start() -> date:
+    return _term_bounds()[0]
 
 
 def resolve_period(period: str) -> dict:
@@ -73,10 +87,10 @@ def resolve_period(period: str) -> dict:
         label = "Last 90 days"
         day_count = 90
     elif p == "semester":
-        start = _semester_start()
+        start, term_end = _term_bounds()
         if start > end:
             start = end - timedelta(days=89)
-        label = f"Semester (since {start.isoformat()})"
+        label = f"Term ({start.isoformat()} – {term_end.isoformat()})"
         day_count = (end - start).days + 1
     elif p.endswith("d") and p[:-1].isdigit():
         n = int(p[:-1])
