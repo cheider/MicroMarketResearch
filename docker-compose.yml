@@ -1,13 +1,11 @@
 services:
-  app:
+  web:
     build: .
     ports:
       - "5000:5000"
-    env_file: .env
+    env_file:
+      - .env
     volumes:
-      - data:/app/data
-      - logs:/app/logs
-
-volumes:
-  data:
-  logs:
+      - ./analytics.db:/app/analytics.db
+      - ./logs:/app/logs
+    restart: unless-stopped
