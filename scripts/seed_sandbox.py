@@ -72,6 +72,30 @@ def print_margin_preview():
         print("  No items with cost data found.")
 
 
+def seed_sample_quarters():
+    """Insert sample school-year quarters if none exist yet."""
+    from app.analysis.quarter_analytics import (
+        create_quarter, get_all_quarters
+    )
+    if get_all_quarters():
+        print("\nQuarters already defined — skipping sample quarter seed.")
+        return
+
+    sample = [
+        ("2024-2025", "Fall",   "2024-08-26", "2024-11-22"),
+        ("2024-2025", "Winter", "2024-11-25", "2025-02-14"),
+        ("2024-2025", "Spring", "2025-02-17", "2025-05-23"),
+        ("2024-2025", "Summer", "2025-05-27", "2025-08-15"),
+    ]
+    print("\nSeeding sample school-year quarters...")
+    for school_year, season, start, end in sample:
+        try:
+            create_quarter(school_year, season, start, end)
+            print(f"  Added: {season} {school_year} ({start} – {end})")
+        except ValueError as exc:
+            print(f"  Skipped {season} {school_year}: {exc}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Seed local DB from Clover sandbox.")
     parser.add_argument("--days", type=int, default=30, help="Lookback window in days")
@@ -114,6 +138,7 @@ def main():
         print(f"  Ingest FAILED: {exc}")
         sys.exit(1)
 
+    seed_sample_quarters()
     print_row_counts()
     print_margin_preview()
     pii_clean = verify_no_pii()
