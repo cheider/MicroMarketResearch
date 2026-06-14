@@ -1,6 +1,16 @@
-# Canonical Clover REST smoke tests (production).
-# Set CLOVER_API_TOKEN and CLOVER_MERCHANT_ID in .env, or fill in below.
-# Python ETL uses the same paths/params via app/clover/query_params.py.
+# Step 2 — catalog/orders (run after test_clover_token.ps1 succeeds).
+# MID must match merchants/current id (NSC MICRO MARKET: H9XRT0SG797A1).
+# See docs/CLOVER_API.md
+
+$RepoRoot = Split-Path -Parent $PSScriptRoot
+$EnvFile = Join-Path $RepoRoot ".env"
+if (Test-Path $EnvFile) {
+    Get-Content $EnvFile | ForEach-Object {
+        if ($_ -match '^\s*([^#=]+)=(.*)$') {
+            Set-Item -Path "env:$($matches[1].Trim())" -Value $matches[2].Trim()
+        }
+    }
+}
 
 $TOKEN = $env:CLOVER_API_TOKEN
 $MID   = $env:CLOVER_MERCHANT_ID
@@ -8,7 +18,7 @@ $BASE  = if ($env:CLOVER_BASE_URL) { $env:CLOVER_BASE_URL } else { "https://api.
 $H     = @{ Authorization = "Bearer $TOKEN"; Accept = "application/json" }
 
 if (-not $TOKEN -or -not $MID) {
-    Write-Error "Set CLOVER_API_TOKEN and CLOVER_MERCHANT_ID (e.g. from .env)"
+    Write-Error "Set CLOVER_API_TOKEN and CLOVER_MERCHANT_ID in .env"
     exit 1
 }
 

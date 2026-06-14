@@ -99,6 +99,34 @@
     </div>
 
     <div class="col-lg-7">
+        <div class="card mb-4">
+            <div class="card-header fw-semibold">Historical Data Sync</div>
+            <div class="card-body">
+                <p class="small text-muted mb-3">
+                    The <strong>Sync Now</strong> button only pulls the last 30 days.
+                    Use this to backfill older quarters — set the number of days back
+                    you need and run a full sync.
+                </p>
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <div class="d-flex align-items-center gap-2">
+                        <label class="form-label small fw-semibold mb-0"
+                               for="historicalDays">Days back:</label>
+                        <input type="number" id="historicalDays"
+                               class="form-control form-control-sm"
+                               style="width:90px;"
+                               value="180" min="1" max="730">
+                    </div>
+                    <button class="btn btn-warning btn-sm"
+                            onclick="runHistoricalSync()">
+                        Full Historical Sync
+                    </button>
+                </div>
+                <div class="form-text mt-2">
+                    Tip: one school year ≈ 365 days. Two school years ≈ 730 days.
+                </div>
+            </div>
+        </div>
+
         <div class="card">
             <div class="card-header fw-semibold">Sync Log</div>
             <div class="card-body p-0">
@@ -163,8 +191,9 @@
             </div>
             <div class="card-body">
                 <p class="text-muted small mb-3">
-                    Simulates ingest-style traffic (pagination, bursts, parallel requests) to verify
-                    credentials and rate-limit handling. Does not write to the database.
+                    Optional development tool only — not the team API smoke test.
+                    Use the team PowerShell script in <code>docs/CLOVER_API.md</code> first.
+                    This runs extra pagination/burst GETs; does not write to the database.
                 </p>
                 <div class="row g-3 align-items-end">
                     <div class="col-md-4">
@@ -328,6 +357,12 @@
 
 {% block scripts %}
 <script>
+    function runHistoricalSync() {
+        var days = parseInt(document.getElementById('historicalDays').value, 10);
+        if (isNaN(days) || days < 1) { alert('Enter a valid number of days.'); return; }
+        triggerIngest('full', days);
+    }
+
     function toggleToken() {
         const input = document.getElementById('tokenInput');
         const btn = document.getElementById('tokenToggle');

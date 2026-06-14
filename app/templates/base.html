@@ -161,6 +161,12 @@
         <a class="sidebar-link {% if '/dashboards/profit' in request.path %}active{% endif %}"
            href="/dashboards/profit">Profit</a>
 
+        <div class="sidebar-section">Quarter Analysis</div>
+        <a class="sidebar-link {% if '/analysis/quarters' in request.path and 'manage' not in request.path %}active{% endif %}"
+           href="/analysis/quarters">Compare Quarters</a>
+        <a class="sidebar-link {% if '/analysis/quarters/manage' in request.path %}active{% endif %}"
+           href="/analysis/quarters/manage">Manage Quarters</a>
+
         {% if ux.show_insights_nav or ux.show_analysis_nav %}
         <div class="sidebar-section">Analysis</div>
         {% if ux.show_insights_nav %}
@@ -370,7 +376,7 @@
             });
     }
 
-    window.triggerIngest = function (mode) {
+    window.triggerIngest = function (mode, days) {
         var syncBtn = _getSyncBtn();
         if (syncBtn) { syncBtn.disabled = true; syncBtn.textContent = 'Sync in progress...'; }
 
@@ -381,7 +387,7 @@
         fetch('/ingest', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({mode: mode, days: {{ config.get('INGEST_LOOKBACK_DAYS', 90) }}})
+            body: JSON.stringify({mode: mode, days: days || {{ config.get('INGEST_LOOKBACK_DAYS', 90) }}})
         })
         .then(function (r) { return r.json(); })
         .then(function (data) {

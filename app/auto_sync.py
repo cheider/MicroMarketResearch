@@ -23,7 +23,6 @@ def _run_incremental(app):
             run_incremental_ingest(
                 app.extensions["clover_client"],
                 days=days,
-                db_path=cfg.DB_PATH,
             )
             logger.info("Auto-sync completed (%s days lookback)", days)
         except Exception as exc:

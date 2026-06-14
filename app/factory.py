@@ -70,6 +70,7 @@ def create_app(config=None):
     from app.routes.settings import settings_bp
     from app.routes.insights import insights_bp
     from app.routes.clover_tests import clover_tests_bp
+    from app.routes.quarters import quarters_bp
 
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(dashboards_bp)
@@ -81,6 +82,7 @@ def create_app(config=None):
     app.register_blueprint(settings_bp)
     app.register_blueprint(insights_bp)
     app.register_blueprint(clover_tests_bp)
+    app.register_blueprint(quarters_bp)
 
     if not isinstance(cfg, TestConfig):
         start_auto_sync(app)

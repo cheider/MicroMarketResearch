@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Manage Quarters — NSC Micro Market{% endblock %}
+
+{% block content %}
+<div class="page-title">Manage Quarters</div>
+<div class="page-subtitle">
+    Define school-year quarters to enable week-aligned comparison analysis.
+</div>
+
+<!-- Add Quarter Form -->
+<div class="content-card mb-4">
+    <div class="content-card-title">Add Quarter</div>
+    <form method="POST" action="/analysis/quarters/manage"
+          class="row g-3 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label small fw-semibold" for="school_year">
+                School Year
+            </label>
+            <input type="text" class="form-control form-control-sm"
+                   id="school_year" name="school_year"
+                   placeholder="e.g. 2024-2025" required>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label small fw-semibold" for="season">
+                Season
+            </label>
+            <select class="form-select form-select-sm"
+                    id="season" name="season" required>
+                <option value="" disabled selected>Select…</option>
+                <option value="Fall">Fall</option>
+                <option value="Winter">Winter</option>
+                <option value="Spring">Spring</option>
+                <option value="Summer">Summer</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label small fw-semibold" for="start_date">
+                Start Date
+            </label>
+            <input type="date" class="form-control form-control-sm"
+                   id="start_date" name="start_date" required>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label small fw-semibold" for="end_date">
+                End Date
+            </label>
+            <input type="date" class="form-control form-control-sm"
+                   id="end_date" name="end_date" required>
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-primary btn-sm w-100">
+                Add Quarter
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Existing Quarters Table -->
+<div class="content-card">
+    <div class="content-card-title">Defined Quarters</div>
+    {% if quarters %}
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>School Year</th>
+                    <th>Season</th>
+                    <th>Start Date</th>
+                    <th>End Date</th>
+                    <th>Weeks</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for q in quarters %}
+                <tr>
+                    <td>{{ q.school_year }}</td>
+                    <td>{{ q.season }}</td>
+                    <td>{{ q.start_date }}</td>
+                    <td>{{ q.end_date }}</td>
+                    <td>{{ q.total_weeks }}</td>
+                    <td class="text-end">
+                        <form method="POST"
+                              action="/analysis/quarters/{{ q.id }}/delete"
+                              onsubmit="return confirm('Delete {{ q.label }}?');"
+                              style="display:inline;">
+                            <button type="submit"
+                                    class="btn btn-outline-danger btn-sm py-0">
+                                Delete
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted small mb-0">
+        No quarters defined yet. Use the form above to add your first quarter.
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

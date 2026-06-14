@@ -37,8 +37,14 @@ class CloverClient:
     def _url(self, path: str) -> str:
         return f"{self._base_url}/v3/merchants/{self._merchant_id}/{path.lstrip('/')}"
 
+    def get_current_merchant(self) -> dict:
+        """GET /v3/merchants/current — token resolves to the merchant (team smoke test)."""
+        return self._request_json(f"{self._base_url}/v3/merchants/current")
+
     def get(self, path: str, params: dict | list | None = None) -> dict:
-        url = self._url(path)
+        return self._request_json(self._url(path), params=params)
+
+    def _request_json(self, url: str, params: dict | list | None = None) -> dict:
         query = prepare_query_params(params)
         logger.debug("GET %s  params=%s", url, query)
         delay = 1.0

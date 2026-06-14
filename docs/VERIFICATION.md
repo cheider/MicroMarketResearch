@@ -86,9 +86,10 @@ Manual: cycle all four **UI demo preset** values in the sidebar; confirm nav and
 ## Layer 6 — Production Clover
 
 1. `.env`: `CLOVER_API_TOKEN`, `CLOVER_MERCHANT_ID`, `CLOVER_BASE_URL=https://api.clover.com`
-2. `INGEST_LOOKBACK_DAYS=90` (or higher for semester trends)
-3. Settings → Production URL → Save → Sync Now
-4. Confirm `sync_log` latest row is `success` and Insights forecast/reorder tables populate.
+2. Run the **team PowerShell API script** — see [CLOVER_API.md](CLOVER_API.md) (or `scripts/clover_api_reference.ps1`)
+3. `INGEST_LOOKBACK_DAYS=90` (or higher for semester trends)
+4. `python scripts/seed_sandbox.py --days 90 --mode full` or Settings → Sync Now
+5. Confirm `sync_log` latest row is `success` and Insights forecast/reorder tables populate.
 
 ## Troubleshooting
 

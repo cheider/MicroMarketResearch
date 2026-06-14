@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+{% block title %}Quarter Analysis — NSC Micro Market{% endblock %}
+
+{% block content %}
+<div class="page-title">Quarter Analysis</div>
+<div class="page-subtitle">
+    Compare week-by-week performance across school-year quarters.
+</div>
+
+{% if not quarters %}
+<!-- No quarters configured -->
+<div class="content-card">
+    <p class="mb-1">No quarters have been defined yet.</p>
+    <a href="/analysis/quarters/manage" class="btn btn-primary btn-sm mt-2">
+        Manage Quarters
+    </a>
+</div>
+
+{% else %}
+<!-- Quarter selector -->
+<div class="filter-bar mb-4">
+    <form method="GET" action="/analysis/quarters"
+          class="d-flex align-items-center gap-2 flex-wrap">
+        <select class="form-select form-select-sm" name="q1"
+                style="max-width:200px;" required>
+            <option value="" disabled {% if not q1_id %}selected{% endif %}>
+                Quarter 1…
+            </option>
+            {% for q in quarters %}
+            <option value="{{ q.id }}"
+                    {% if q.id == q1_id %}selected{% endif %}>
+                {{ q.label }}
+            </option>
+            {% endfor %}
+        </select>
+
+        <span class="text-muted small fw-semibold">vs</span>
+
+        <select class="form-select form-select-sm" name="q2"
+                style="max-width:200px;" required>
+            <option value="" disabled {% if not q2_id %}selected{% endif %}>
+                Quarter 2…
+            </option>
+            {% for q in quarters %}
+            <option value="{{ q.id }}"
+                    {% if q.id == q2_id %}selected{% endif %}>
+                {{ q.label }}
+            </option>
+            {% endfor %}
+        </select>
+
+        <button type="submit" class="btn btn-primary btn-sm">Compare</button>
+        {% if q1_id and q2_id %}
+        <a href="/analysis/quarters" class="btn btn-outline-secondary btn-sm">
+            Clear
+        </a>
+        {% endif %}
+    </form>
+</div>
+
+{% if comparison and comparison.weeks %}
+{% set q1 = comparison.q1 %}
+{% set q2 = comparison.q2 %}
+
+<!-- Compute totals for KPI cards -->
+{% set q1_total_rev = comparison.weeks
+       | map(attribute='q1_revenue') | sum %}
+{% set q2_total_rev = comparison.weeks
+       | map(attribute='q2_revenue') | sum %}
+{% set rev_delta = q2_total_rev - q1_total_rev %}
+{% set best_week = comparison.weeks
+       | sort(attribute='revenue_delta') | last %}
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-3">
+        <div class="kpi-card blue">
+            <div class="kpi-label">{{ q1.label }} Revenue</div>
+            <div class="kpi-value">
+                ${{ "%.2f"|format(q1_total_rev / 100) }}
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="kpi-card orange">
+            <div class="kpi-label">{{ q2.label }} Revenue</div>
+            <div class="kpi-value">
+                ${{ "%.2f"|format(q2_total_rev / 100) }}
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="kpi-card {% if rev_delta >= 0 %}green{% else %}red{% endif %}">
+            <div class="kpi-label">Total Revenue Delta</div>
+            <div class="kpi-value">
+                {% if rev_delta >= 0 %}+{% endif
+                %}${{ "%.2f"|format(rev_delta | abs / 100) }}
+            </div>
+            <div class="kpi-sub">
+                {{ q2.label }} vs {{ q1.label }}
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="kpi-card purple">
+            <div class="kpi-label">Best Week (by Δ Revenue)</div>
+            <div class="kpi-value">Week {{ best_week.week_num }}</div>
+            <div class="kpi-sub">
+                Δ ${{ "%.2f"|format(best_week.revenue_delta | abs / 100) }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Revenue comparison chart -->
+<div class="content-card mb-4">
+    <div class="content-card-title">Weekly Revenue Comparison</div>
+    <canvas id="revenueChart" height="80"></canvas>
+</div>
+
+<!-- Profit comparison chart -->
+<div class="content-card mb-4">
+    <div class="content-card-title">Weekly Profit Comparison</div>
+    <canvas id="profitChart" height="80"></canvas>
+</div>
+
+<!-- Week-by-week table -->
+<div class="content-card">
+    <div class="content-card-title">Week-by-Week Breakdown</div>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Week</th>
+                    <th class="text-end">{{ q1.label }} Rev</th>
+                    <th class="text-end">{{ q2.label }} Rev</th>
+                    <th class="text-end">Rev Δ</th>
+                    <th class="text-end">{{ q1.label }} Profit</th>
+                    <th class="text-end">{{ q2.label }} Profit</th>
+                    <th class="text-end">Profit Δ</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for w in comparison.weeks %}
+                <tr>
+                    <td>Week {{ w.week_num }}</td>
+                    <td class="text-end">
+                        ${{ "%.2f"|format(w.q1_revenue / 100) }}
+                    </td>
+                    <td class="text-end">
+                        ${{ "%.2f"|format(w.q2_revenue / 100) }}
+                    </td>
+                    <td class="text-end
+                        {% if w.revenue_delta > 0 %}text-success
+                        {% elif w.revenue_delta < 0 %}text-danger
+                        {% endif %}">
+                        {% if w.revenue_delta >= 0 %}+{% endif
+                        %}${{ "%.2f"|format(w.revenue_delta | abs / 100) }}
+                    </td>
+                    <td class="text-end">
+                        ${{ "%.2f"|format(w.q1_profit / 100) }}
+                    </td>
+                    <td class="text-end">
+                        ${{ "%.2f"|format(w.q2_profit / 100) }}
+                    </td>
+                    <td class="text-end
+                        {% if w.profit_delta > 0 %}text-success
+                        {% elif w.profit_delta < 0 %}text-danger
+                        {% endif %}">
+                        {% if w.profit_delta >= 0 %}+{% endif
+                        %}${{ "%.2f"|format(w.profit_delta | abs / 100) }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% elif q1_id and q2_id %}
+<!-- Quarters selected but no overlapping sales data -->
+<div class="content-card">
+    <p class="text-muted mb-0">
+        No sales data found for the selected quarters.
+        Make sure data has been synced for the relevant date ranges.
+    </p>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if comparison and comparison.weeks %}
+<script>
+(function () {
+    var labels   = {{ chart_labels | safe }};
+    var q1Rev    = {{ chart_q1_revenue | safe }};
+    var q2Rev    = {{ chart_q2_revenue | safe }};
+    var q1Prof   = {{ chart_q1_profit | safe }};
+    var q2Prof   = {{ chart_q2_profit | safe }};
+    var q1Label  = {{ comparison.q1.label | tojson }};
+    var q2Label  = {{ comparison.q2.label | tojson }};
+
+    function makeChart(canvasId, q1Data, q2Data, yLabel) {
+        var ctx = document.getElementById(canvasId).getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: q1Label,
+                        data: q1Data,
+                        borderColor: '#4f8ef7',
+                        backgroundColor: 'rgba(79,142,247,0.08)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 4
+                    },
+                    {
+                        label: q2Label,
+                        data: q2Data,
+                        borderColor: '#fd7e14',
+                        backgroundColor: 'rgba(253,126,20,0.08)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'top' },
+                    tooltip: {
+                        callbacks: {
+                            label: function (ctx) {
+                                return ctx.dataset.label + ': $' +
+                                    ctx.parsed.y.toFixed(2);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function (v) {
+                                return '$' + v.toFixed(0);
+                            }
+                        },
+                        title: { display: true, text: yLabel }
+                    }
+                }
+            }
+        });
+    }
+
+    makeChart('revenueChart', q1Rev, q2Rev, 'Revenue ($)');
+    makeChart('profitChart',  q1Prof, q2Prof, 'Profit ($)');
+}());
+</script>
+{% endif %}
+{% endblock %}

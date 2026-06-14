@@ -59,7 +59,7 @@ def _create_schema(conn: sqlite3.Connection):
 
         CREATE TABLE IF NOT EXISTS daily_sales (
             id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-            item_id               TEXT NOT NULL REFERENCES items(item_id),
+            item_id               TEXT NOT NULL REFERENCES items(item_id) ON DELETE CASCADE,
             sale_date             TEXT NOT NULL,
             units_sold            INTEGER NOT NULL DEFAULT 0,
             gross_revenue_cents   INTEGER NOT NULL DEFAULT 0,
@@ -68,7 +68,7 @@ def _create_schema(conn: sqlite3.Connection):
 
         CREATE TABLE IF NOT EXISTS stock_snapshots (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            item_id      TEXT NOT NULL REFERENCES items(item_id),
+            item_id      TEXT NOT NULL REFERENCES items(item_id) ON DELETE CASCADE,
             snapshot_ts  TEXT NOT NULL,
             quantity     INTEGER NOT NULL
         );
@@ -95,6 +95,16 @@ def _create_schema(conn: sqlite3.Connection):
             event_type  TEXT NOT NULL,
             created_at  TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS quarters (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            school_year TEXT NOT NULL,
+            season      TEXT NOT NULL
+                CHECK(season IN ('Spring','Summer','Fall','Winter')),
+            start_date  TEXT NOT NULL,
+            end_date    TEXT NOT NULL,
+            UNIQUE(school_year, season)
+        );
     """)
 
 
@@ -104,6 +114,19 @@ def _migrate(conn: sqlite3.Connection):
         conn.execute("ALTER TABLE items ADD COLUMN category_id TEXT")
     except sqlite3.OperationalError:
         pass  # column already exists
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_daily_sales_item_id"
+        " ON daily_sales(item_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_stock_snapshots_item_id"
+        " ON stock_snapshots(item_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_items_category_id"
+        " ON items(category_id)"
+    )
 
 
 def column_audit(table: str) -> list:
