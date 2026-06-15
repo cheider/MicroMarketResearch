@@ -41,7 +41,7 @@
             <tr>
                 <td><a href="/item/{{ row.item_id }}" class="text-decoration-none">{{ row.item_name }}</a></td>
                 <td>{{ row.product_type }}</td>
-                <td class="text-muted small">{{ row.clover_category or '—' }}</td>
+                <td class="text-muted small">{% if row.clover_category %}{{ row.clover_category }}{% else %}&mdash;{% endif %}</td>
                 <td class="text-end">${{ "%.2f"|format(row.price_dollars) }}</td>
                 <td class="text-end">{{ row.units_sold_90d }}</td>
                 <td class="text-end">${{ "%.2f"|format(row.revenue_dollars_90d) }}</td>

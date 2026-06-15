@@ -206,7 +206,7 @@
                             const tr = document.createElement('tr');
                             tr.innerHTML =
                                 '<td>' + row.name + '</td>' +
-                                '<td>' + (row.current || '—') + '</td>' +
+                                '<td>' + (row.current || '&mdash;') + '</td>' +
                                 '<td>' + row.suggested + '</td>' +
                                 '<td class="text-muted small">' + row.rule_matched + '</td>';
                             tbody.appendChild(tr);

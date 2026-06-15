@@ -1,4 +1,6 @@
-from flask import Blueprint, render_template, request
+from flask import Blueprint, request
+
+from app.render import render_app_template
 
 from app.analysis.shrinkage import get_shrinkage_report
 
@@ -24,7 +26,7 @@ def shrinkage():
         rows = df[existing].to_dict(orient="records")
         alert_rows = [r for r in rows if r.get("shrinkage_units", 0) > 0]
 
-    return render_template(
+    return render_app_template(
         "shrinkage.html",
         rows=rows,
         alert_rows=alert_rows,

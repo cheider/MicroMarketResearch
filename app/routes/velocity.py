@@ -1,4 +1,6 @@
-from flask import Blueprint, render_template, request
+from flask import Blueprint, request
+
+from app.render import render_app_template
 
 from app.analysis.velocity import get_velocity_report
 
@@ -18,7 +20,7 @@ def velocity():
         cols = [c for c in ["rank", "name", "units_sold", "gross_revenue_cents", "revenue_share_pct", "price_dollars", "item_id"] if c in df.columns]
         return df[cols].to_dict(orient="records")
 
-    return render_template(
+    return render_app_template(
         "velocity.html",
         top_sellers=to_rows(report["top_sellers"]),
         bottom_sellers=to_rows(report["bottom_sellers"]),

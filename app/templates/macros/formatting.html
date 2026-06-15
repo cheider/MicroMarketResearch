@@ -1,0 +1,7 @@
+{# Encoding-safe punctuation for templates (ASCII files, no UTF-8 mojibake). #}
+
+{% macro em_dash() %}&mdash;{% endmacro %}
+
+{% macro or_em_dash(value) -%}
+{%- if value is not none and value != '' -%}{{ value }}{%- else -%}&mdash;{%- endif -%}
+{%- endmacro %}

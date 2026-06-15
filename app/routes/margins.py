@@ -1,4 +1,6 @@
-from flask import Blueprint, render_template, request, current_app
+from flask import Blueprint, request, current_app
+
+from app.render import render_app_template
 
 from app.analysis.margins import get_margin_report
 
@@ -20,7 +22,7 @@ def margins():
         cols = [c for c in ["item_id", "name", "price_dollars", "cost_dollars", "margin_pct"] if c in df.columns]
         return df[cols].to_dict(orient="records")
 
-    return render_template(
+    return render_app_template(
         "margins.html",
         negative=to_rows(report["negative"]),
         low=to_rows(report["low"]),

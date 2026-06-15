@@ -14,10 +14,11 @@ from flask import (
     Blueprint,
     flash,
     redirect,
-    render_template,
     request,
     url_for,
 )
+
+from app.render import render_app_template
 
 from app.analysis.quarter_analytics import (
     compare_quarters,
@@ -71,7 +72,7 @@ def quarter_comparison():
                 for w in comparison["weeks"]
             ]
 
-    return render_template(
+    return render_app_template(
         "quarters.html",
         quarters=quarters,
         q1_id=q1_id,
@@ -92,7 +93,7 @@ def quarter_comparison():
 @quarters_bp.route("/analysis/quarters/manage", methods=["GET"])
 def manage_quarters():
     quarters = get_all_quarters()
-    return render_template("quarters_manage.html", quarters=quarters)
+    return render_app_template("quarters_manage.html", quarters=quarters)
 
 
 @quarters_bp.route("/analysis/quarters/manage", methods=["POST"])

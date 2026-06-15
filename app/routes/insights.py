@@ -2,7 +2,9 @@ import io
 from datetime import date
 
 import pandas as pd
-from flask import Blueprint, render_template, request, make_response, redirect, url_for, flash, g
+from flask import Blueprint, request, make_response, redirect, url_for, flash, g
+
+from app.render import render_app_template, scrub_if_demo
 
 from app.analysis.periods import normalize_period, resolve_period
 from app.analysis.seasonal import (
@@ -53,7 +55,7 @@ def insights_dashboard():
     stockout = stockout_risk_items()
     forecast = get_forecast_summary(horizon_days=14)
 
-    return render_template(
+    return render_app_template(
         "insights.html",
         period=period,
         period_info=period_info,
@@ -72,7 +74,7 @@ def insights_dashboard():
 
 @insights_bp.route("/analysis/insights/reorder/download")
 def reorder_download():
-    rows = reorder_suggestions()
+    rows = scrub_if_demo(reorder_suggestions())
     df = pd.DataFrame(rows) if rows else pd.DataFrame(
         columns=[
             "item_id", "name", "avg_daily_units", "on_hand",

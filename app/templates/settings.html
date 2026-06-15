@@ -51,6 +51,11 @@
 
                     <div class="mb-3">
                         <label class="form-label fw-semibold small">Merchant ID</label>
+                        {% if demo_anonymize %}
+                        <input type="text" class="form-control" value="DEMO-MERCH-*****" disabled>
+                        <input type="hidden" name="clover_merchant_id" value="{{ merchant_id }}">
+                        <div class="form-text">Turn off demo mode to view or edit credentials.</div>
+                        {% else %}
                         <input
                             type="text"
                             class="form-control"
@@ -58,6 +63,7 @@
                             value="{{ merchant_id }}"
                             required
                         >
+                        {% endif %}
                     </div>
 
                     <div class="mb-3">
@@ -128,6 +134,28 @@
                 <p class="small text-muted mb-0">
                     Suggestions refresh automatically after each item sync.
                 </p>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header fw-semibold">Demo mode</div>
+            <div class="card-body">
+                <p class="small text-muted mb-3">
+                    Masks product IDs, prices, sales counts, and supplier labels in the UI.
+                    <strong>Item names stay real.</strong>
+                    Data still syncs normally; this is a display filter only.
+                </p>
+                <form method="post" action="/settings/demo-anonymize">
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch"
+                               id="demoAnonymize" name="demo_anonymize"
+                               {% if demo_anonymize %}checked{% endif %}
+                               onchange="this.form.submit()">
+                        <label class="form-check-label" for="demoAnonymize">
+                            Mask numbers and IDs in the UI
+                        </label>
+                    </div>
+                </form>
             </div>
         </div>
 

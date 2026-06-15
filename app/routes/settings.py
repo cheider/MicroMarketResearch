@@ -20,6 +20,7 @@ from app.analysis.calendar import (
 )
 from app.ux.variants import COOKIE_NAME, get_variant
 from app.analysis.category_resolution import SUGGESTED_CATEGORIES_COOKIE
+from app.demo_anonymize import DEMO_ANONYMIZE_COOKIE, scrub_payload
 
 settings_bp = Blueprint("settings", __name__)
 
@@ -53,6 +54,8 @@ def settings():
     base_url = cfg.CLOVER_BASE_URL
     is_custom = base_url not in _KNOWN_BASE_URLS
     sync_log = _get_sync_log()
+    if getattr(g, "demo_anonymize", False):
+        sync_log = scrub_payload(sync_log)
 
     cal = get_calendar_meta()
     return render_template(
@@ -66,6 +69,7 @@ def settings():
         calendar_meta=cal,
         ingest_lookback_days=cfg.INGEST_LOOKBACK_DAYS,
         use_suggested_categories=getattr(g, "use_suggested_categories", False),
+        demo_anonymize=getattr(g, "demo_anonymize", False),
     )
 
 
@@ -197,6 +201,25 @@ def settings_category_suggestions():
     resp = make_response(redirect(url_for("settings.settings")))
     resp.set_cookie(
         SUGGESTED_CATEGORIES_COOKIE,
+        "1" if enabled else "0",
+        max_age=60 * 60 * 24 * 365,
+        samesite="Lax",
+    )
+    return resp
+
+
+@settings_bp.route("/settings/demo-anonymize", methods=["POST"])
+def settings_demo_anonymize():
+    enabled = request.form.get("demo_anonymize") == "on"
+    flash(
+        "Demo mode on — IDs and numbers are masked in the UI."
+        if enabled
+        else "Demo mode off — showing real values.",
+        "success" if enabled else "info",
+    )
+    resp = make_response(redirect(url_for("settings.settings")))
+    resp.set_cookie(
+        DEMO_ANONYMIZE_COOKIE,
         "1" if enabled else "0",
         max_age=60 * 60 * 24 * 365,
         samesite="Lax",

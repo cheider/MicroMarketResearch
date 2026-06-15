@@ -168,6 +168,10 @@
         <a class="sidebar-link {% if '/analysis/quarters/manage' in request.path %}active{% endif %}"
            href="/analysis/quarters/manage">Manage Quarters</a>
 
+        <div class="sidebar-section">Category Analysis</div>
+        <a class="sidebar-link {% if '/analysis/categories' in request.path %}active{% endif %}"
+           href="/analysis/categories">Overview</a>
+
         <div class="sidebar-section">Inventory Tools</div>
         <a class="sidebar-link {% if request.path == '/tools/inventory' %}active{% endif %}"
            href="/tools/inventory">Overview</a>
@@ -229,6 +233,16 @@
         </div>
         {% endif %}
         {% endwith %}
+
+        {% if demo_anonymize %}
+        <div class="alert alert-warning py-2 mb-3 d-flex align-items-center justify-content-between gap-2">
+            <span class="small mb-0">
+                <strong>Demo mode</strong> — product IDs, prices, and sales numbers are masked.
+                Item names are unchanged. Sync still updates real data underneath.
+            </span>
+            <a href="/settings" class="btn btn-sm btn-outline-dark flex-shrink-0">Settings</a>
+        </div>
+        {% endif %}
 
         {% block content %}{% endblock %}
     </main>

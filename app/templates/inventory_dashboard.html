@@ -1,9 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Inventory Turnover â€” NSC Micro Market{% endblock %}
+{% from "macros/formatting.html" import em_dash %}
+{% block title %}Inventory Turnover &mdash; NSC Micro Market{% endblock %}
 
 {% block content %}
 <div class="page-title">Inventory Turnover</div>
-<p class="page-subtitle">{{ period_info.label }} â€” stock, turnover, and low-stock alerts.</p>
+<p class="page-subtitle">{{ period_info.label }} &mdash; stock, turnover, and low-stock alerts.</p>
 
 {% if stats.total_stock_units == 0 and not by_category %}
 <div class="alert alert-info py-2 mb-3">
@@ -30,7 +31,7 @@
     <div class="col-md-3">
         <div class="kpi-card green">
             <div class="kpi-label">Days on Hand</div>
-            <div class="kpi-value">{{ stats.days_on_hand if stats.days_on_hand is not none else "â€”" }}</div>
+            <div class="kpi-value">{% if stats.days_on_hand is not none %}{{ stats.days_on_hand }}{% else %}{{ em_dash() }}{% endif %}</div>
             <div class="kpi-sub">Avg stock / daily sales rate</div>
         </div>
     </div>
