@@ -21,23 +21,35 @@ class TestDashboardRoute:
         response = client.get("/", follow_redirects=True)
         assert b"NSC Micro Market" in response.data
 
-    def test_sidebar_includes_analysis_links(self, client):
+    def test_sidebar_hides_analysis_links_by_default(self, client):
+        response = client.get("/dashboards/sales")
+        assert response.status_code == 200
+        assert b"/analysis/insights" not in response.data
+        assert b"UI demo preset" not in response.data
+
+    def test_sidebar_shows_analysis_links_with_insights_preset(self, client):
+        client.set_cookie("mmr_ux_variant", "insights_full")
         response = client.get("/dashboards/sales")
         assert response.status_code == 200
         assert b"/analysis/insights" in response.data
         assert b"/analysis/margins" in response.data
-        assert b"/analysis/shrinkage" in response.data
-        assert b"/analysis/velocity" in response.data
 
 
 class TestInsightsRoute:
     def test_insights_returns_200(self, client):
+        client.set_cookie("mmr_ux_variant", "insights_full")
         response = client.get("/analysis/insights")
         assert response.status_code == 200
 
     def test_insights_accepts_period(self, client):
+        client.set_cookie("mmr_ux_variant", "insights_full")
         response = client.get("/analysis/insights?period=30d")
         assert response.status_code == 200
+
+    def test_insights_redirects_when_team_main(self, client):
+        client.set_cookie("mmr_ux_variant", "team_main")
+        response = client.get("/analysis/insights")
+        assert response.status_code == 302
 
 
 class TestIngestStatusRoute:
@@ -298,6 +310,17 @@ class TestSettingsRoute:
         )
         assert response.status_code == 200
         assert b"cannot be blank" in response.data
+
+    def test_settings_category_suggestions_toggle(self, client):
+        resp = client.post(
+            "/settings/category-suggestions",
+            data={"use_suggested_categories": "on"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+        assert resp.headers.get("Set-Cookie", "").startswith(
+            "mmr_use_suggested_categories=1"
+        )
 
     def test_settings_includes_stress_test_ui(self, client):
         response = client.get("/settings")

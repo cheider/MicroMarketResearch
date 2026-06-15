@@ -51,6 +51,7 @@ def test_items_params_match_powershell_reference():
     assert "limit=1000" in url
     assert "offset=0" in url
     assert "expand=itemStock" in url
+    assert "expand=categories" in url
 
 
 def test_prepare_query_params_from_dict():

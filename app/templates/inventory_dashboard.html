@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Inventory Turnover — NSC Micro Market{% endblock %}
+{% block title %}Inventory Turnover â€” NSC Micro Market{% endblock %}
 
 {% block content %}
 <div class="page-title">Inventory Turnover</div>
-<p class="page-subtitle">{{ period_info.label }} — stock, turnover, and low-stock alerts.</p>
+<p class="page-subtitle">{{ period_info.label }} â€” stock, turnover, and low-stock alerts.</p>
 
 {% if stats.total_stock_units == 0 and not by_category %}
 <div class="alert alert-info py-2 mb-3">
@@ -30,7 +30,7 @@
     <div class="col-md-3">
         <div class="kpi-card green">
             <div class="kpi-label">Days on Hand</div>
-            <div class="kpi-value">{{ stats.days_on_hand if stats.days_on_hand is not none else "—" }}</div>
+            <div class="kpi-value">{{ stats.days_on_hand if stats.days_on_hand is not none else "â€”" }}</div>
             <div class="kpi-sub">Avg stock / daily sales rate</div>
         </div>
     </div>
@@ -38,7 +38,7 @@
         <div class="kpi-card red">
             <div class="kpi-label">Low Stock Alerts</div>
             <div class="kpi-value">{{ stats.low_stock_count }}</div>
-            <div class="kpi-sub">Items with quantity &lt; 10</div>
+            <div class="kpi-sub">Tracked items with quantity &lt; 10</div>
         </div>
     </div>
     <div class="col-md-3">

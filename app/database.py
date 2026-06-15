@@ -48,6 +48,13 @@ def _create_schema(conn: sqlite3.Connection):
             last_synced   TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS product_categories (
+            product_category_id TEXT PRIMARY KEY,
+            name                TEXT NOT NULL,
+            color_hex           TEXT,
+            sort_order          INTEGER
+        );
+
         CREATE TABLE IF NOT EXISTS items (
             item_id       TEXT PRIMARY KEY,
             name          TEXT NOT NULL,
@@ -115,6 +122,59 @@ def _migrate(conn: sqlite3.Connection):
     except sqlite3.OperationalError:
         pass  # column already exists
 
+    try:
+        conn.execute("ALTER TABLE items ADD COLUMN suggested_category_id TEXT")
+    except sqlite3.OperationalError:
+        pass  # column already exists
+
+    try:
+        conn.execute("ALTER TABLE categories ADD COLUMN kind TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute(
+            "ALTER TABLE items ADD COLUMN product_category_id TEXT"
+            " REFERENCES product_categories(product_category_id)"
+        )
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute(
+            "ALTER TABLE items ADD COLUMN suggested_product_category_id TEXT"
+            " REFERENCES product_categories(product_category_id)"
+        )
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute(
+            "ALTER TABLE items ADD COLUMN track_inventory INTEGER NOT NULL DEFAULT 1"
+        )
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute("ALTER TABLE product_categories ADD COLUMN color_hex TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute("ALTER TABLE product_categories ADD COLUMN sort_order INTEGER")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute("ALTER TABLE items ADD COLUMN product_category_source TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        conn.execute("ALTER TABLE items ADD COLUMN category_board_sort INTEGER")
+    except sqlite3.OperationalError:
+        pass
+
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_daily_sales_item_id"
         " ON daily_sales(item_id)"
@@ -127,6 +187,13 @@ def _migrate(conn: sqlite3.Connection):
         "CREATE INDEX IF NOT EXISTS idx_items_category_id"
         " ON items(category_id)"
     )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_items_product_category_id"
+        " ON items(product_category_id)"
+    )
+
+    from app.etl.product_taxonomy import seed_product_categories
+    seed_product_categories()
 
 
 def column_audit(table: str) -> list:

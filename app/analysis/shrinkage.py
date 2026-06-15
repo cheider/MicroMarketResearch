@@ -11,6 +11,7 @@ which indicates theft, damage, data entry errors, or unrecorded transactions.
 
 import pandas as pd
 from app.database import get_connection
+from app.analysis.inventory_scope import tracked_items_clause
 
 
 def get_shrinkage_report(days: int = 30) -> pd.DataFrame:
@@ -27,7 +28,12 @@ def get_shrinkage_report(days: int = 30) -> pd.DataFrame:
     """
     with get_connection() as conn:
         items_df = pd.read_sql(
-            "SELECT item_id, name, price_cents, cost_cents FROM items WHERE is_active = 1",
+            f"""
+            SELECT item_id, name, price_cents, cost_cents
+            FROM items
+            WHERE is_active = 1
+            {tracked_items_clause(None)}
+            """,
             conn,
         )
 

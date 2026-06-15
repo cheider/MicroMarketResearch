@@ -7,15 +7,18 @@ import pandas as pd
 
 from app.database import get_connection
 from app.analysis.periods import resolve_period
+from app.analysis.inventory_scope import tracked_items_clause
 
 
 def _latest_stock() -> pd.DataFrame:
     with get_connection() as conn:
         return pd.read_sql(
-            """
+            f"""
             SELECT ss.item_id, ss.quantity
             FROM stock_snapshots ss
+            JOIN items i ON ss.item_id = i.item_id
             WHERE ss.id IN (SELECT MAX(id) FROM stock_snapshots GROUP BY item_id)
+            {tracked_items_clause("i")}
             """,
             conn,
         )
@@ -64,7 +67,12 @@ def reorder_suggestions(target_days_cover: int = 7, min_avg_daily: float = 0.1) 
 
     with get_connection() as conn:
         items_df = pd.read_sql(
-            "SELECT item_id, name, price_cents FROM items WHERE is_active = 1",
+            f"""
+            SELECT item_id, name, price_cents
+            FROM items
+            WHERE is_active = 1
+            {tracked_items_clause(None)}
+            """,
             conn,
         )
 

@@ -79,7 +79,7 @@ VARIANTS: dict[str, UxVariant] = {
     ),
 }
 
-DEFAULT_VARIANT_ID = "insights_full"
+DEFAULT_VARIANT_ID = "team_main"
 
 
 def get_variant(variant_id: str) -> UxVariant:

@@ -37,6 +37,20 @@ def get_margin_report(threshold: float = 0.10) -> dict:
     no_cost = df[df["cost_cents"].isna()].copy()
     has_cost = df[df["cost_cents"].notna()].copy()
 
+    if has_cost.empty:
+        empty = pd.DataFrame(
+            columns=["item_id", "name", "price_cents", "cost_cents", "margin", "margin_pct"]
+        )
+        return {
+            "negative": empty,
+            "low": empty,
+            "acceptable": empty,
+            "no_cost": no_cost,
+            "threshold": threshold,
+            "total_items": len(df),
+            "items_with_cost": 0,
+        }
+
     has_cost["margin"] = (
         (has_cost["price_cents"] - has_cost["cost_cents"]) / has_cost["price_cents"]
     ).round(4)
@@ -64,7 +78,10 @@ def get_item_margin(item_id: str) -> dict | None:
     """Returns margin data for a single item, or None if not found."""
     with get_connection() as conn:
         df = pd.read_sql(
-            "SELECT item_id, name, price_cents, cost_cents FROM items WHERE item_id = ?",
+            """
+            SELECT item_id, name, price_cents, cost_cents, track_inventory
+            FROM items WHERE item_id = ?
+            """,
             conn,
             params=(item_id,),
         )
@@ -80,6 +97,7 @@ def get_item_margin(item_id: str) -> dict | None:
     if pd.notna(cost) and price > 0:
         margin = round((price - cost) / price, 4)
 
+    track_val = row["track_inventory"] if "track_inventory" in df.columns else 1
     return {
         "item_id": row["item_id"],
         "name": row["name"],
@@ -87,4 +105,5 @@ def get_item_margin(item_id: str) -> dict | None:
         "cost_dollars": cost / 100 if pd.notna(cost) else None,
         "margin": margin,
         "margin_pct": round(margin * 100, 2) if margin is not None else None,
+        "track_inventory": bool(int(track_val)) if pd.notna(track_val) else True,
     }

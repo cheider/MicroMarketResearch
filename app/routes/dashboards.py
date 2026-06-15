@@ -6,13 +6,14 @@ import io
 from datetime import date
 
 import pandas as pd
-from flask import Blueprint, render_template, request, make_response
+from flask import Blueprint, render_template, request, make_response, g, redirect, url_for
 
 from app.analysis.periods import normalize_period, resolve_period
 from app.analysis.dashboard_analytics import (
     get_all_categories,
     get_sales_stats,
     get_sales_by_category,
+    get_sales_by_clover_dimension,
     get_top_products,
     get_inventory_stats,
     get_stock_by_category,
@@ -36,6 +37,10 @@ def _category_param() -> str | None:
     return val if val else None
 
 
+def _use_suggested() -> bool:
+    return bool(getattr(g, "use_suggested_categories", False))
+
+
 # ---------------------------------------------------------------------------
 # Sales dashboard
 # ---------------------------------------------------------------------------
@@ -44,19 +49,29 @@ def _category_param() -> str | None:
 def sales_dashboard():
     period = _period_param()
     category_id = _category_param()
+    use_suggested = _use_suggested()
 
-    stats = get_sales_stats(period=period, category_id=category_id)
-    by_category = get_sales_by_category(period=period, category_id=category_id)
-    top_products = get_top_products(period=period, category_id=category_id)
-    categories = get_all_categories()
+    stats = get_sales_stats(
+        period=period, category_id=category_id, use_suggested=use_suggested
+    )
+    by_category = get_sales_by_category(
+        period=period, category_id=category_id, use_suggested=use_suggested
+    )
+    by_supplier = get_sales_by_clover_dimension(period=period, kind="supplier")
+    by_location = get_sales_by_clover_dimension(period=period, kind="location")
+    top_products = get_top_products(
+        period=period, category_id=category_id, use_suggested=use_suggested
+    )
+    categories = get_all_categories(use_suggested=use_suggested)
 
     return render_template(
         "sales_dashboard.html",
         period=period,
-        period_info=resolve_period(period),
         category_id=category_id,
         stats=stats,
         by_category=by_category,
+        by_supplier=by_supplier,
+        by_location=by_location,
         top_products=top_products,
         categories=categories,
     )
@@ -67,7 +82,12 @@ def sales_download():
     period = _period_param()
     category_id = _category_param()
 
-    top_products = get_top_products(period=period, category_id=category_id, top_n=1000)
+    top_products = get_top_products(
+        period=period,
+        category_id=category_id,
+        top_n=1000,
+        use_suggested=_use_suggested(),
+    )
     df = pd.DataFrame(top_products) if top_products else pd.DataFrame(
         columns=["item_id", "name", "units_sold", "revenue_cents"]
     )
@@ -91,12 +111,15 @@ def sales_download():
 def inventory_dashboard():
     period = _period_param()
 
+    use_suggested = _use_suggested()
     stats = get_inventory_stats(period=period)
-    by_category = get_stock_by_category()
-    turnover_by_cat = get_turnover_by_category(period=period)
-    low_stock = get_low_stock_items(threshold=10)
+    by_category = get_stock_by_category(use_suggested=use_suggested)
+    turnover_by_cat = get_turnover_by_category(
+        period=period, use_suggested=use_suggested
+    )
+    low_stock = get_low_stock_items(threshold=10, use_suggested=use_suggested)
     chart = get_stock_chart_data(top_n=20)
-    categories = get_all_categories()
+    categories = get_all_categories(use_suggested=use_suggested)
 
     return render_template(
         "inventory_dashboard.html",
@@ -113,8 +136,8 @@ def inventory_dashboard():
 
 @dashboards_bp.route("/dashboards/inventory/download")
 def inventory_download():
-    low_stock = get_low_stock_items(threshold=10)
-    by_category = get_stock_by_category()
+    low_stock = get_low_stock_items(threshold=10, use_suggested=_use_suggested())
+    by_category = get_stock_by_category(use_suggested=_use_suggested())
 
     rows = by_category if by_category else []
     df = pd.DataFrame(rows) if rows else pd.DataFrame(
@@ -141,10 +164,13 @@ def profit_dashboard():
     period = _period_param()
     category_id = _category_param()
 
-    stats = get_profit_stats(period=period, category_id=category_id)
-    by_category = get_profit_by_category(period=period)
+    use_suggested = _use_suggested()
+    stats = get_profit_stats(
+        period=period, category_id=category_id, use_suggested=use_suggested
+    )
+    by_category = get_profit_by_category(period=period, use_suggested=use_suggested)
     weekly = get_weekly_profit(weeks=8)
-    categories = get_all_categories()
+    categories = get_all_categories(use_suggested=use_suggested)
 
     return render_template(
         "profit_dashboard.html",
@@ -163,7 +189,9 @@ def profit_download():
     period = _period_param()
     category_id = _category_param()
 
-    by_category = get_profit_by_category(period=period)
+    by_category = get_profit_by_category(
+        period=period, use_suggested=_use_suggested()
+    )
     df = pd.DataFrame(by_category) if by_category else pd.DataFrame(
         columns=["category_id", "name", "revenue_cents", "cost_cents", "margin_pct"]
     )
@@ -177,3 +205,13 @@ def profit_download():
         f"attachment; filename=profit_{date.today().isoformat()}.csv"
     )
     return response
+
+
+@dashboards_bp.route("/dashboards/profit/missing-costs/download")
+def missing_costs_download_legacy():
+    """Redirect to Inventory Tools missing-cost download."""
+    qs = request.query_string.decode("utf-8")
+    target = url_for("inventory_tools.missing_costs_download")
+    if qs:
+        return redirect(f"{target}?{qs}")
+    return redirect(target)

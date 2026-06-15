@@ -3,7 +3,7 @@ import os
 from dotenv import set_key
 from flask import (
     Blueprint, render_template, request,
-    redirect, url_for, flash, current_app, make_response,
+    redirect, url_for, flash, current_app, make_response, g,
 )
 
 from app.clover.client import CloverClient
@@ -19,6 +19,7 @@ from app.analysis.calendar import (
     sync_estimated_events_to_db,
 )
 from app.ux.variants import COOKIE_NAME, get_variant
+from app.analysis.category_resolution import SUGGESTED_CATEGORIES_COOKIE
 
 settings_bp = Blueprint("settings", __name__)
 
@@ -64,6 +65,7 @@ def settings():
         calendar_events=get_all_events(),
         calendar_meta=cal,
         ingest_lookback_days=cfg.INGEST_LOOKBACK_DAYS,
+        use_suggested_categories=getattr(g, "use_suggested_categories", False),
     )
 
 
@@ -181,6 +183,25 @@ def settings_calendar_save():
     upsert_academic_event(event_id, label, start_date, end_date, event_type)
     flash(f"Calendar event '{label}' saved.", "success")
     return redirect(url_for("settings.settings"))
+
+
+@settings_bp.route("/settings/category-suggestions", methods=["POST"])
+def settings_category_suggestions():
+    enabled = request.form.get("use_suggested_categories") == "on"
+    flash(
+        "Suggested categories enabled for reports."
+        if enabled
+        else "Using official Clover categories only.",
+        "success" if enabled else "info",
+    )
+    resp = make_response(redirect(url_for("settings.settings")))
+    resp.set_cookie(
+        SUGGESTED_CATEGORIES_COOKIE,
+        "1" if enabled else "0",
+        max_age=60 * 60 * 24 * 365,
+        samesite="Lax",
+    )
+    return resp
 
 
 @settings_bp.route("/settings/ux", methods=["POST"])

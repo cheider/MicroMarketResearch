@@ -78,14 +78,15 @@ def get_week_over_week(period: str = "7d") -> dict:
     with get_connection() as conn:
         cat_df = pd.read_sql(
             """
-            SELECT COALESCE(c.name, 'Uncategorized') AS name,
+            SELECT COALESCE(pc.name, 'Uncategorized') AS name,
                    SUM(CASE WHEN ds.sale_date BETWEEN :cs AND :ce THEN ds.gross_revenue_cents ELSE 0 END) AS cur_rev,
                    SUM(CASE WHEN ds.sale_date BETWEEN :ps AND :pe THEN ds.gross_revenue_cents ELSE 0 END) AS prev_rev
             FROM daily_sales ds
             JOIN items i ON ds.item_id = i.item_id
-            LEFT JOIN categories c ON i.category_id = c.category_id
+            LEFT JOIN product_categories pc
+              ON i.product_category_id = pc.product_category_id
             WHERE ds.sale_date BETWEEN :ps AND :ce
-            GROUP BY COALESCE(c.name, 'Uncategorized')
+            GROUP BY COALESCE(pc.name, 'Uncategorized')
             """,
             conn,
             params={
@@ -185,14 +186,15 @@ def get_category_mix_shift(period: str = "30d") -> list:
     with get_connection() as conn:
         df = pd.read_sql(
             """
-            SELECT COALESCE(c.name, 'Uncategorized') AS name,
+            SELECT COALESCE(pc.name, 'Uncategorized') AS name,
                    SUM(CASE WHEN ds.sale_date BETWEEN :cs AND :ce THEN ds.gross_revenue_cents ELSE 0 END) AS cur,
                    SUM(CASE WHEN ds.sale_date BETWEEN :ps AND :pe THEN ds.gross_revenue_cents ELSE 0 END) AS prev
             FROM daily_sales ds
             JOIN items i ON ds.item_id = i.item_id
-            LEFT JOIN categories c ON i.category_id = c.category_id
+            LEFT JOIN product_categories pc
+              ON i.product_category_id = pc.product_category_id
             WHERE ds.sale_date BETWEEN :ps AND :ce
-            GROUP BY COALESCE(c.name, 'Uncategorized')
+            GROUP BY COALESCE(pc.name, 'Uncategorized')
             """,
             conn,
             params={

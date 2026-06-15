@@ -23,10 +23,18 @@ def test_sales_always_200(client):
         assert client.get("/dashboards/sales").status_code == 200
 
 
-def test_team_main_hides_insights_nav(client):
+def test_team_main_hides_demo_sidebar_extras(client):
     client.set_cookie(COOKIE_NAME, "team_main")
     html = client.get("/dashboards/sales").data.decode()
     assert 'href="/analysis/insights"' not in html
+    assert "UI demo preset" not in html
+
+
+def test_default_without_cookie_matches_team_main(client):
+    html = client.get("/dashboards/sales").data.decode()
+    assert "UI demo preset" not in html
+    assert "This Week" in html
+    assert "Semester" not in html
 
 
 def test_insights_full_shows_insights_nav(client):

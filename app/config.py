@@ -33,7 +33,7 @@ class Config:
         default_factory=lambda: int(os.environ.get("AUTO_SYNC_INTERVAL_MINUTES", "0"))
     )
     UX_VARIANT_DEFAULT: str = field(
-        default_factory=lambda: os.environ.get("UX_VARIANT_DEFAULT", "insights_full").strip()
+        default_factory=lambda: os.environ.get("UX_VARIANT_DEFAULT", "team_main").strip()
     )
     SECRET_KEY: str = field(default_factory=lambda: os.environ.get("FLASK_SECRET_KEY", "dev"))
 
@@ -49,5 +49,5 @@ class TestConfig(Config):
         object.__setattr__(self, "MARGIN_ALERT_THRESHOLD", 0.10)
         object.__setattr__(self, "INGEST_LOOKBACK_DAYS", 30)
         object.__setattr__(self, "AUTO_SYNC_INTERVAL_MINUTES", 0)
-        object.__setattr__(self, "UX_VARIANT_DEFAULT", "insights_full")
+        object.__setattr__(self, "UX_VARIANT_DEFAULT", "team_main")
         object.__setattr__(self, "SECRET_KEY", "test-secret")

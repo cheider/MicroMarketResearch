@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Missing Costs — Inventory Tools{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="/tools/inventory" class="text-decoration-none text-muted small">Inventory Tools</a>
+</div>
+<div class="page-title">Missing Cost Collection</div>
+<p class="page-subtitle">
+    Export active items with no Clover <code>defaultCost</code> (last 90 days of sales for priority).
+    Fill in <strong>cost_dollars_to_enter</strong> offline, enter values in Clover Inventory, then re-sync.
+</p>
+
+<div class="content-card mb-4">
+    <div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-3">
+        <div>
+            <div class="content-card-title mb-1">Download workbook</div>
+            <p class="text-muted small mb-0">{{ stats.missing_cost }} active item(s) missing cost.</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="/tools/inventory/missing-costs/download"
+               class="btn btn-sm btn-primary">Download missing costs CSV</a>
+            <a href="/tools/inventory/missing-costs/download?include_zero_price=0"
+               class="btn btn-sm btn-outline-secondary">CSV (priced items only)</a>
+        </div>
+    </div>
+    {% if missing_costs %}
+    <table class="table table-sm table-hover mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>Item</th>
+                <th>Product type</th>
+                <th>Clover tag</th>
+                <th class="text-end">Price</th>
+                <th class="text-end">Units (90d)</th>
+                <th class="text-end">Revenue (90d)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in missing_costs %}
+            <tr>
+                <td><a href="/item/{{ row.item_id }}" class="text-decoration-none">{{ row.item_name }}</a></td>
+                <td>{{ row.product_type }}</td>
+                <td class="text-muted small">{{ row.clover_category or '—' }}</td>
+                <td class="text-end">${{ "%.2f"|format(row.price_dollars) }}</td>
+                <td class="text-end">{{ row.units_sold_90d }}</td>
+                <td class="text-end">${{ "%.2f"|format(row.revenue_dollars_90d) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if stats.missing_cost > missing_costs|length %}
+    <p class="text-muted small mt-2 mb-0">
+        Showing top {{ missing_costs|length }} by sales. Download CSV for all {{ stats.missing_cost }} items.
+    </p>
+    {% endif %}
+    {% else %}
+    <p class="text-muted small mb-0">All active items have a recorded cost.</p>
+    {% endif %}
+</div>
+{% endblock %}

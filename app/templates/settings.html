@@ -100,6 +100,38 @@
 
     <div class="col-lg-7">
         <div class="card mb-4">
+            <div class="card-header fw-semibold">Product Category Suggestions</div>
+            <div class="card-body">
+                <p class="small text-muted mb-3">
+                    Clover &ldquo;categories&rdquo; mix three ideas: <strong>product types</strong>
+                    (Drinks, Snacks, Pastries), <strong>suppliers</strong> (US Foods, Snak Club),
+                    and <strong>locations</strong> (Lily Pad Cafe, Bookstore). Dashboard filters and
+                    &ldquo;Sales by Product Type&rdquo; use normalized product types only.
+                    Supplier and location breakdowns use the raw Clover tag on each item.
+                </p>
+                <p class="small text-muted mb-3">
+                    Items missing a product type can be grouped locally with rule-based suggestions.
+                    Suggested buckets appear as <em>Drinks (suggested)</em> and are never written
+                    back to Clover.
+                </p>
+                <form method="post" action="/settings/category-suggestions">
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" role="switch"
+                               id="useSuggestedCategories" name="use_suggested_categories"
+                               {% if use_suggested_categories %}checked{% endif %}
+                               onchange="this.form.submit()">
+                        <label class="form-check-label" for="useSuggestedCategories">
+                            Use suggested product types in dashboards
+                        </label>
+                    </div>
+                </form>
+                <p class="small text-muted mb-0">
+                    Suggestions refresh automatically after each item sync.
+                </p>
+            </div>
+        </div>
+
+        <div class="card mb-4">
             <div class="card-header fw-semibold">Historical Data Sync</div>
             <div class="card-body">
                 <p class="small text-muted mb-3">

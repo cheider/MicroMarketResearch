@@ -68,6 +68,6 @@ def prepare_query_params(
 
 
 # ETL expand flags (see scripts/clover_api_reference.ps1)
-ITEMS_EXPAND = expand_param("itemStock")
+ITEMS_EXPAND = merge_params(expand_param("itemStock"), expand_param("categories"))
 ORDERS_EXPAND = expand_param("lineItems")
 LINE_ITEMS_EXPAND = expand_param("item")

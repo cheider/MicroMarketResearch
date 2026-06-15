@@ -11,6 +11,14 @@ import pandas as pd
 
 from app.database import get_connection
 from app.analysis.periods import resolve_period
+from app.analysis.category_resolution import (
+    category_bucket_exprs,
+    category_filter_clause,
+    category_joins,
+    clover_dimension_bucket_exprs,
+    clover_kind_joins,
+)
+from app.analysis.inventory_scope import tracked_items_clause
 
 
 def _period_bounds(period: str) -> tuple[str, str, int]:
@@ -22,7 +30,11 @@ def _period_bounds(period: str) -> tuple[str, str, int]:
 # Sales dashboard
 # ---------------------------------------------------------------------------
 
-def get_sales_stats(period: str = "week", category_id: str = None) -> dict:
+def get_sales_stats(
+    period: str = "week",
+    category_id: str = None,
+    use_suggested: bool = False,
+) -> dict:
     """
     Returns aggregate KPIs and a daily revenue series for the Sales dashboard.
 
@@ -37,8 +49,11 @@ def get_sales_stats(period: str = "week", category_id: str = None) -> dict:
         cat_where = ""
         if category_id:
             cat_join = "JOIN items i ON ds.item_id = i.item_id"
-            cat_where = "AND i.category_id = :category_id"
-            params["category_id"] = category_id
+            filter_sql, filter_params = category_filter_clause(
+                category_id, use_suggested
+            )
+            cat_where = filter_sql
+            params.update(filter_params)
 
         sales_df = pd.read_sql(
             f"""
@@ -75,7 +90,11 @@ def get_sales_stats(period: str = "week", category_id: str = None) -> dict:
     }
 
 
-def get_sales_by_category(period: str = "week", category_id: str = None) -> list:
+def get_sales_by_category(
+    period: str = "week",
+    category_id: str = None,
+    use_suggested: bool = False,
+) -> list:
     """
     Returns revenue by category for the period, sorted descending by revenue.
 
@@ -83,26 +102,32 @@ def get_sales_by_category(period: str = "week", category_id: str = None) -> list
     """
     start, end, _ = _period_bounds(period)
 
+    cat_id_expr, cat_name_expr = category_bucket_exprs(use_suggested)
+    cat_joins_sql = category_joins(use_suggested)
+
     cat_where = ""
     params: dict = {"start": start, "end": end}
     if category_id:
-        cat_where = "AND i.category_id = :category_id"
-        params["category_id"] = category_id
+        filter_sql, filter_params = category_filter_clause(
+            category_id, use_suggested
+        )
+        cat_where = filter_sql
+        params.update(filter_params)
 
     with get_connection() as conn:
         df = pd.read_sql(
             f"""
             SELECT
-                COALESCE(c.category_id, 'uncategorized') AS category_id,
-                COALESCE(c.name, 'Uncategorized')        AS name,
-                SUM(ds.gross_revenue_cents)               AS revenue_cents,
-                SUM(ds.units_sold)                        AS units_sold
+                {cat_id_expr} AS category_id,
+                {cat_name_expr} AS name,
+                SUM(ds.gross_revenue_cents) AS revenue_cents,
+                SUM(ds.units_sold) AS units_sold
             FROM daily_sales ds
             JOIN items i ON ds.item_id = i.item_id
-            LEFT JOIN categories c ON i.category_id = c.category_id
+            {cat_joins_sql}
             WHERE ds.sale_date BETWEEN :start AND :end
             {cat_where}
-            GROUP BY COALESCE(c.category_id, 'uncategorized'), COALESCE(c.name, 'Uncategorized')
+            GROUP BY {cat_id_expr}, {cat_name_expr}
             ORDER BY revenue_cents DESC
             """,
             conn,
@@ -116,7 +141,12 @@ def get_sales_by_category(period: str = "week", category_id: str = None) -> list
     return df.to_dict(orient="records")
 
 
-def get_top_products(period: str = "week", top_n: int = 10, category_id: str = None) -> list:
+def get_top_products(
+    period: str = "week",
+    top_n: int = 10,
+    category_id: str = None,
+    use_suggested: bool = False,
+) -> list:
     """
     Returns the top-n items by revenue for the period.
 
@@ -127,8 +157,11 @@ def get_top_products(period: str = "week", top_n: int = 10, category_id: str = N
     cat_where = ""
     params: dict = {"start": start, "end": end, "top_n": top_n}
     if category_id:
-        cat_where = "AND i.category_id = :category_id"
-        params["category_id"] = category_id
+        filter_sql, filter_params = category_filter_clause(
+            category_id, use_suggested
+        )
+        cat_where = filter_sql
+        params.update(filter_params)
 
     with get_connection() as conn:
         df = pd.read_sql(
@@ -170,14 +203,16 @@ def get_inventory_stats(period: str = "week") -> dict:
     start, end, period_days = _period_bounds(period)
 
     with get_connection() as conn:
-        # Latest snapshot quantity per item
+        # Latest snapshot quantity per tracked item
         stock_df = pd.read_sql(
-            """
-            SELECT item_id, quantity
-            FROM stock_snapshots
-            WHERE id IN (
+            f"""
+            SELECT ss.item_id, ss.quantity
+            FROM stock_snapshots ss
+            JOIN items i ON ss.item_id = i.item_id
+            WHERE ss.id IN (
                 SELECT MAX(id) FROM stock_snapshots GROUP BY item_id
             )
+            {tracked_items_clause("i")}
             """,
             conn,
         )
@@ -216,26 +251,30 @@ def get_inventory_stats(period: str = "week") -> dict:
     }
 
 
-def get_stock_by_category() -> list:
+def get_stock_by_category(use_suggested: bool = False) -> list:
     """
     Returns total current stock per category (latest snapshot per item).
 
     Each row: {category_id, name, total_stock}
     """
+    cat_id_expr, cat_name_expr = category_bucket_exprs(use_suggested)
+    cat_joins_sql = category_joins(use_suggested)
+
     with get_connection() as conn:
         df = pd.read_sql(
-            """
+            f"""
             SELECT
-                COALESCE(c.category_id, 'uncategorized') AS category_id,
-                COALESCE(c.name, 'Uncategorized')        AS name,
-                SUM(ss.quantity)                          AS total_stock
+                {cat_id_expr} AS category_id,
+                {cat_name_expr} AS name,
+                SUM(ss.quantity) AS total_stock
             FROM stock_snapshots ss
             JOIN items i ON ss.item_id = i.item_id
-            LEFT JOIN categories c ON i.category_id = c.category_id
+            {cat_joins_sql}
             WHERE ss.id IN (
                 SELECT MAX(id) FROM stock_snapshots GROUP BY item_id
             )
-            GROUP BY COALESCE(c.category_id, 'uncategorized'), COALESCE(c.name, 'Uncategorized')
+            {tracked_items_clause("i")}
+            GROUP BY {cat_id_expr}, {cat_name_expr}
             ORDER BY total_stock DESC
             """,
             conn,
@@ -247,7 +286,7 @@ def get_stock_by_category() -> list:
     return df.to_dict(orient="records")
 
 
-def get_turnover_by_category(period: str = "week") -> list:
+def get_turnover_by_category(period: str = "week", use_suggested: bool = False) -> list:
     """
     Returns turnover rate per category for the period.
 
@@ -255,20 +294,23 @@ def get_turnover_by_category(period: str = "week") -> list:
     """
     start, end, _ = _period_bounds(period)
 
+    cat_id_expr, cat_name_expr = category_bucket_exprs(use_suggested)
+
     with get_connection() as conn:
         stock_df = pd.read_sql(
-            """
+            f"""
             SELECT
                 i.item_id,
-                COALESCE(c.category_id, 'uncategorized') AS category_id,
-                COALESCE(c.name, 'Uncategorized')        AS name,
+                {cat_id_expr} AS category_id,
+                {cat_name_expr} AS name,
                 ss.quantity
             FROM stock_snapshots ss
             JOIN items i ON ss.item_id = i.item_id
-            LEFT JOIN categories c ON i.category_id = c.category_id
+            {category_joins(use_suggested)}
             WHERE ss.id IN (
                 SELECT MAX(id) FROM stock_snapshots GROUP BY item_id
             )
+            {tracked_items_clause("i")}
             """,
             conn,
         )
@@ -305,27 +347,30 @@ def get_turnover_by_category(period: str = "week") -> list:
     return grouped.to_dict(orient="records")
 
 
-def get_low_stock_items(threshold: int = 10) -> list:
+def get_low_stock_items(threshold: int = 10, use_suggested: bool = False) -> list:
     """
     Returns items whose latest snapshot quantity is below `threshold`.
 
     Each row: {item_id, name, quantity, category_name}
     """
+    _, cat_name_expr = category_bucket_exprs(use_suggested)
+
     with get_connection() as conn:
         df = pd.read_sql(
-            """
+            f"""
             SELECT
                 i.item_id,
                 i.name,
                 ss.quantity,
-                COALESCE(c.name, 'Uncategorized') AS category_name
+                {cat_name_expr} AS category_name
             FROM stock_snapshots ss
             JOIN items i ON ss.item_id = i.item_id
-            LEFT JOIN categories c ON i.category_id = c.category_id
+            {category_joins(use_suggested)}
             WHERE ss.id IN (
                 SELECT MAX(id) FROM stock_snapshots GROUP BY item_id
             )
               AND ss.quantity < :threshold
+            {tracked_items_clause("i")}
             ORDER BY ss.quantity ASC
             """,
             conn,
@@ -346,13 +391,14 @@ def get_stock_chart_data(top_n: int = 20) -> dict:
     """
     with get_connection() as conn:
         df = pd.read_sql(
-            """
+            f"""
             SELECT i.name, ss.quantity
             FROM stock_snapshots ss
             JOIN items i ON ss.item_id = i.item_id
             WHERE ss.id IN (
                 SELECT MAX(id) FROM stock_snapshots GROUP BY item_id
             )
+            {tracked_items_clause("i")}
             ORDER BY ss.quantity DESC
             LIMIT :top_n
             """,
@@ -372,7 +418,11 @@ def get_stock_chart_data(top_n: int = 20) -> dict:
 # Profit dashboard
 # ---------------------------------------------------------------------------
 
-def get_profit_stats(period: str = "week", category_id: str = None) -> dict:
+def get_profit_stats(
+    period: str = "week",
+    category_id: str = None,
+    use_suggested: bool = False,
+) -> dict:
     """
     Returns KPIs for the Profit dashboard.
 
@@ -384,8 +434,11 @@ def get_profit_stats(period: str = "week", category_id: str = None) -> dict:
     cat_where = ""
     params: dict = {"start": start, "end": end}
     if category_id:
-        cat_where = "AND i.category_id = :category_id"
-        params["category_id"] = category_id
+        filter_sql, filter_params = category_filter_clause(
+            category_id, use_suggested
+        )
+        cat_where = filter_sql
+        params.update(filter_params)
 
     with get_connection() as conn:
         df = pd.read_sql(
@@ -442,7 +495,7 @@ def get_profit_stats(period: str = "week", category_id: str = None) -> dict:
     }
 
 
-def get_profit_by_category(period: str = "week") -> list:
+def get_profit_by_category(period: str = "week", use_suggested: bool = False) -> list:
     """
     Returns revenue, cost, and margin per category for the period.
 
@@ -450,22 +503,24 @@ def get_profit_by_category(period: str = "week") -> list:
     """
     start, end, _ = _period_bounds(period)
 
+    cat_id_expr, cat_name_expr = category_bucket_exprs(use_suggested)
+
     with get_connection() as conn:
         df = pd.read_sql(
-            """
+            f"""
             SELECT
-                COALESCE(c.category_id, 'uncategorized') AS category_id,
-                COALESCE(c.name, 'Uncategorized')        AS name,
-                SUM(ds.gross_revenue_cents)               AS revenue_cents,
+                {cat_id_expr} AS category_id,
+                {cat_name_expr} AS name,
+                SUM(ds.gross_revenue_cents) AS revenue_cents,
                 SUM(
                     CASE WHEN i.cost_cents IS NOT NULL
                     THEN ds.units_sold * i.cost_cents ELSE 0 END
-                )                                         AS cost_cents
+                ) AS cost_cents
             FROM daily_sales ds
             JOIN items i ON ds.item_id = i.item_id
-            LEFT JOIN categories c ON i.category_id = c.category_id
+            {category_joins(use_suggested)}
             WHERE ds.sale_date BETWEEN :start AND :end
-            GROUP BY COALESCE(c.category_id, 'uncategorized'), COALESCE(c.name, 'Uncategorized')
+            GROUP BY {cat_id_expr}, {cat_name_expr}
             ORDER BY revenue_cents DESC
             """,
             conn,
@@ -519,10 +574,87 @@ def get_weekly_profit(weeks: int = 8) -> list:
 # Shared helpers
 # ---------------------------------------------------------------------------
 
-def get_all_categories() -> list:
-    """Returns all category rows for filter dropdowns."""
+def get_all_categories(use_suggested: bool = False) -> list:
+    """Product category rows for dashboard filter dropdowns."""
     with get_connection() as conn:
         rows = conn.execute(
-            "SELECT category_id, name FROM categories ORDER BY name"
+            """
+            SELECT product_category_id AS category_id, name
+            FROM product_categories
+            ORDER BY name
+            """
+        ).fetchall()
+        categories = [dict(r) for r in rows]
+
+        if use_suggested:
+            suggested_rows = conn.execute(
+                """
+                SELECT DISTINCT
+                    'suggested:' || ps.product_category_id AS category_id,
+                    ps.name || ' (suggested)' AS name
+                FROM items i
+                JOIN product_categories ps
+                  ON i.suggested_product_category_id = ps.product_category_id
+                WHERE (i.product_category_id IS NULL OR i.product_category_id = '')
+                  AND i.suggested_product_category_id IS NOT NULL
+                  AND i.suggested_product_category_id != ''
+                ORDER BY ps.name
+                """
+            ).fetchall()
+            categories.extend(dict(r) for r in suggested_rows)
+
+    return categories
+
+
+def get_clover_categories(kind: str) -> list:
+    """Supplier or location Clover tags for optional dimension filters."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT category_id, name
+            FROM categories
+            WHERE kind = :kind
+            ORDER BY name
+            """,
+            {"kind": kind},
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def get_sales_by_clover_dimension(
+    period: str = "week",
+    kind: str = "supplier",
+) -> list:
+    """
+    Revenue grouped by Clover supplier or location tags.
+
+    Each row: {category_id, name, revenue_cents, units_sold}
+    """
+    start, end, _ = _period_bounds(period)
+    id_expr, name_expr = clover_dimension_bucket_exprs(kind)
+
+    with get_connection() as conn:
+        df = pd.read_sql(
+            f"""
+            SELECT
+                {id_expr} AS category_id,
+                {name_expr} AS name,
+                SUM(ds.gross_revenue_cents) AS revenue_cents,
+                SUM(ds.units_sold) AS units_sold
+            FROM daily_sales ds
+            JOIN items i ON ds.item_id = i.item_id
+            {clover_kind_joins()}
+            WHERE ds.sale_date BETWEEN :start AND :end
+            GROUP BY {id_expr}, {name_expr}
+            HAVING ({name_expr}) != 'Unassigned'
+            ORDER BY revenue_cents DESC
+            """,
+            conn,
+            params={"start": start, "end": end},
+        )
+
+    if df.empty:
+        return []
+    df["revenue_cents"] = df["revenue_cents"].fillna(0).astype(int)
+    df["units_sold"] = df["units_sold"].fillna(0).astype(int)
+    return df.to_dict(orient="records")
