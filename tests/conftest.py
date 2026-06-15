@@ -1,12 +1,22 @@
+"""
+Pytest fixtures — isolated, reversible, no live Clover.
+
+- Each ``app`` fixture uses a tempfile SQLite DB (deleted after the test).
+- Never uses ``analytics.db`` or ``.env`` writes. See docs/TESTING_STANDARDS.md.
+"""
+
 import os
 import tempfile
 import pytest
 from unittest.mock import MagicMock
 
 import app.database as db_module
-from app import create_app
+from app.factory import create_app
 from app.config import TestConfig
 from app.database import init_db
+
+# Paths tests must never use as DB_PATH (developer production DB).
+_FORBIDDEN_TEST_DB = frozenset({"analytics.db", "./analytics.db"})
 
 
 @pytest.fixture
@@ -16,7 +26,8 @@ def test_config():
 
 @pytest.fixture
 def tmp_db_path():
-    fd, path = tempfile.mkstemp(suffix=".db")
+    """Isolated SQLite file; removed after the test (reversible)."""
+    fd, path = tempfile.mkstemp(prefix="mmr_test_", suffix=".db")
     os.close(fd)
     yield path
     try:
@@ -25,8 +36,19 @@ def tmp_db_path():
         pass
 
 
+def _assert_safe_db_path(path: str) -> None:
+    normalized = os.path.normpath(path).replace("\\", "/")
+    base = os.path.basename(normalized)
+    if base in _FORBIDDEN_TEST_DB or normalized.endswith("/analytics.db"):
+        raise RuntimeError(
+            f"Refusing to run tests against production DB path: {path!r}. "
+            "Use the tmp_db_path fixture. See docs/TESTING_STANDARDS.md."
+        )
+
+
 @pytest.fixture
 def app(tmp_db_path):
+    _assert_safe_db_path(tmp_db_path)
     cfg = TestConfig()
     object.__setattr__(cfg, "DB_PATH", tmp_db_path)
     object.__setattr__(cfg, "SECRET_KEY", "test-secret")
@@ -35,7 +57,6 @@ def app(tmp_db_path):
     application = create_app(config=cfg)
     application.config["TESTING"] = True
     yield application
-
 
 @pytest.fixture
 def client(app):

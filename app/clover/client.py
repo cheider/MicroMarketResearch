@@ -3,6 +3,8 @@ import time
 import random
 import requests
 
+from app.clover.query_params import prepare_query_params
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,6 +25,7 @@ class CloverClient:
     READ_TIMEOUT = 60
 
     def __init__(self, config):
+        self._config = config
         self._session = requests.Session()
         self._session.headers.update({
             "Authorization": f"Bearer {config.CLOVER_API_TOKEN}",
@@ -34,15 +37,22 @@ class CloverClient:
     def _url(self, path: str) -> str:
         return f"{self._base_url}/v3/merchants/{self._merchant_id}/{path.lstrip('/')}"
 
-    def get(self, path: str, params: dict = None) -> dict:
-        url = self._url(path)
-        logger.debug("GET %s  params=%s", url, params)
+    def get_current_merchant(self) -> dict:
+        """GET /v3/merchants/current — token resolves to the merchant (team smoke test)."""
+        return self._request_json(f"{self._base_url}/v3/merchants/current")
+
+    def get(self, path: str, params: dict | list | None = None) -> dict:
+        return self._request_json(self._url(path), params=params)
+
+    def _request_json(self, url: str, params: dict | list | None = None) -> dict:
+        query = prepare_query_params(params)
+        logger.debug("GET %s  params=%s", url, query)
         delay = 1.0
         for attempt in range(self.MAX_RETRIES):
             try:
                 response = self._session.get(
                     url,
-                    params=params,
+                    params=query,
                     timeout=(self.CONNECT_TIMEOUT, self.READ_TIMEOUT),
                 )
             except requests.exceptions.Timeout as exc:

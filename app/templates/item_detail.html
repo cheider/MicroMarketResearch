@@ -9,6 +9,108 @@
 <h4 class="fw-semibold mb-1">{{ item.name }}</h4>
 <small class="text-muted">Item ID: {{ item.item_id }}</small>
 
+<div class="card mt-3 mb-4">
+    <div class="card-body py-3 d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div>
+            <div class="fw-semibold">Inventory tracking</div>
+            <div class="small text-muted">
+                {% if item.track_inventory %}
+                    Included in low-stock alerts, turnover, reorder, and shrinkage.
+                {% else %}
+                    Excluded — for made-to-order drinks, modifiers, and other non-shelf SKUs.
+                {% endif %}
+            </div>
+        </div>
+        <form method="post" action="/item/{{ item.item_id }}/track-inventory" class="mb-0">
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" role="switch"
+                       id="trackInventory" name="track_inventory" value="1"
+                       {% if item.track_inventory %}checked{% endif %}
+                       onchange="this.form.submit()">
+                <label class="form-check-label" for="trackInventory">Track on-hand quantity</label>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card mt-3 mb-4">
+    <div class="card-header fw-semibold">Item context</div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="text-muted small">Product category</div>
+                <div class="fw-semibold">
+                    {{ item.product_category_name }}
+                    {% if item.has_suggestion_only %}
+                    <span class="badge text-bg-secondary ms-1">suggested</span>
+                    {% endif %}
+                </div>
+                {% if item.product_category_source %}
+                <div class="small text-muted">Source: {{ item.product_category_source }}</div>
+                {% endif %}
+            </div>
+            <div class="col-md-4">
+                <div class="text-muted small">Supplier</div>
+                <div>{{ item.supplier }}</div>
+            </div>
+            <div class="col-md-4">
+                <div class="text-muted small">Primary location</div>
+                <div>
+                    {{ item.primary_location }}
+                    {% if item.location_inferred %}
+                    <span class="badge text-bg-warning ms-1">inferred</span>
+                    {% endif %}
+                </div>
+                {% if item.location_note %}
+                <div class="small text-muted">{{ item.location_note }}</div>
+                {% endif %}
+            </div>
+            <div class="col-md-4">
+                <div class="text-muted small">Clover tag</div>
+                <div>
+                    {% if item.clover_category %}
+                        {{ item.clover_category }}
+                        {% if item.clover_category_kind %}
+                        <span class="text-muted">({{ item.clover_category_kind }})</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="text-muted">None</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="text-muted small">Lifetime units sold</div>
+                <div class="fw-semibold">{{ item.lifetime_units_sold }}</div>
+            </div>
+            <div class="col-md-4">
+                <div class="text-muted small">Lifetime revenue</div>
+                <div class="fw-semibold">${{ "%.2f"|format(item.lifetime_revenue_dollars) }}</div>
+            </div>
+            <div class="col-md-4">
+                <div class="text-muted small">First / last sale</div>
+                <div>
+                    {% if item.first_sale_date %}
+                        {{ item.first_sale_date }} — {{ item.last_sale_date }}
+                    {% else %}
+                        <span class="text-muted">No sales recorded</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="text-muted small">On-hand quantity</div>
+                <div>
+                    {% if item.on_hand_qty is not none %}
+                        {{ item.on_hand_qty }}
+                    {% else %}
+                        <span class="text-muted">No snapshot</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row g-3 mt-1 mb-4">
     <div class="col-sm-4">
         <div class="card h-100">
@@ -61,7 +163,11 @@
         <div class="card h-100">
             <div class="card-header fw-semibold">Shrinkage (Last 30 Days)</div>
             <div class="card-body">
-                {% if shrinkage %}
+                {% if not item.track_inventory %}
+                    <p class="text-muted small mb-0">
+                        Shrinkage is not calculated for items excluded from inventory tracking.
+                    </p>
+                {% elif shrinkage %}
                     <div class="mb-2">
                         <div class="text-muted small">Opening Stock</div>
                         <div class="fs-5">{{ shrinkage.opening_stock }}</div>

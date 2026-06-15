@@ -3,40 +3,20 @@
 
 {% block content %}
 <div class="page-title">Profit</div>
-<p class="page-subtitle">Gross profit, margins, and cost breakdown for the selected period.</p>
+<p class="page-subtitle">{{ period_info.label }} — gross profit and margin breakdown.</p>
 
-<!-- Filter bar -->
-<div class="filter-bar">
-    <div class="btn-group btn-group-sm" role="group">
-        <a href="?period=week{% if category_id %}&category_id={{ category_id }}{% endif %}"
-           class="btn {% if period == 'week' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
-            This Week
-        </a>
-        <a href="?period=lastweek{% if category_id %}&category_id={{ category_id }}{% endif %}"
-           class="btn {% if period == 'lastweek' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
-            Last Week
-        </a>
-    </div>
-
-    <form method="get" class="d-flex align-items-center gap-2 mb-0" id="cat-filter-form">
-        <input type="hidden" name="period" value="{{ period }}">
-        <select name="category_id" class="form-select form-select-sm" style="max-width:200px;"
-                onchange="document.getElementById('cat-filter-form').submit()">
-            <option value="">All Categories</option>
-            {% for cat in categories %}
-            <option value="{{ cat.category_id }}"
-                {% if category_id == cat.category_id %}selected{% endif %}>
-                {{ cat.name }}
-            </option>
-            {% endfor %}
-        </select>
-    </form>
-
-    <a href="/dashboards/profit/download?period={{ period }}{% if category_id %}&category_id={{ category_id }}{% endif %}"
-       class="btn btn-sm btn-outline-secondary ms-auto">Download CSV</a>
+{% if stats.gross_profit_cents == 0 and stats.total_costs_cents == 0 and not by_category %}
+<div class="alert alert-info py-2 mb-3">
+    No profit data for this period. Sync from Clover or run <code>python scripts/seed_demo_data.py</code> locally.
 </div>
+{% endif %}
 
-<!-- KPI tiles -->
+{% set filter_extra %}
+<a href="/dashboards/profit/download?period={{ period }}{% if category_id %}&category_id={{ category_id }}{% endif %}"
+   class="btn btn-sm btn-outline-secondary ms-auto">Download CSV</a>
+{% endset %}
+{% include "partials/period_filters.html" %}
+
 <div class="row g-3 mb-4">
     <div class="col-md-3">
         <div class="kpi-card green">
@@ -68,13 +48,21 @@
     </div>
 </div>
 
-<!-- Profit chart -->
+{% if stats.no_cost_count > 0 %}
+<div class="alert alert-light border py-2 mb-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <span class="small">
+        {{ stats.no_cost_count }} item(s) missing Clover cost —
+        use <a href="/tools/inventory/missing-costs">Inventory Tools → Missing Costs</a> to export and fill in.
+    </span>
+    <a href="/tools/inventory/missing-costs" class="btn btn-sm btn-outline-primary">Open missing costs</a>
+</div>
+{% endif %}
+
 <div class="content-card mb-4">
     <div class="content-card-title">Daily Gross Profit</div>
     <canvas id="profitChart" height="90"></canvas>
 </div>
 
-<!-- Lower tiles -->
 <div class="row g-3">
     <div class="col-lg-4">
         <div class="content-card h-100">

@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+{% block title %}Category Board — Inventory Tools{% endblock %}
+
+{% block head %}
+<style>
+    .board-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 14px;
+        align-items: start;
+    }
+    .board-column {
+        border-radius: 10px;
+        padding: 0;
+        background: rgba(0,0,0,0.04);
+        border: 1px solid rgba(0,0,0,0.08);
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 220px;
+        max-height: min(72vh, 540px);
+    }
+    .board-column.is-drop-target {
+        outline: 2px solid rgba(79, 142, 247, 0.55);
+        outline-offset: -1px;
+    }
+    .board-column-header {
+        font-weight: 600;
+        font-size: 0.85rem;
+        padding: 10px 12px 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: inherit;
+        border-radius: 10px 10px 0 0;
+        flex-shrink: 0;
+    }
+    .board-column-body {
+        position: relative;
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        padding: 0 8px 8px;
+    }
+    .board-dropzone {
+        flex: 1 1 auto;
+        min-height: 160px;
+        height: 100%;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 4px 4px 8px;
+        border-radius: 6px;
+        scrollbar-gutter: stable;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(0,0,0,0.28) transparent;
+    }
+    .board-dropzone::-webkit-scrollbar {
+        width: 9px;
+    }
+    .board-dropzone::-webkit-scrollbar-track {
+        background: rgba(0,0,0,0.04);
+        border-radius: 6px;
+    }
+    .board-dropzone::-webkit-scrollbar-thumb {
+        background: rgba(0,0,0,0.22);
+        border-radius: 6px;
+    }
+    .board-dropzone::-webkit-scrollbar-thumb:hover {
+        background: rgba(0,0,0,0.35);
+    }
+    .board-dropzone.is-scrollable::after {
+        content: "";
+        position: sticky;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        display: block;
+        height: 18px;
+        margin-top: -18px;
+        pointer-events: none;
+        background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.92));
+    }
+    .board-dropzone.sortable-drag-over,
+    .board-dropzone:empty {
+        background: rgba(79, 142, 247, 0.04);
+    }
+    .board-dropzone:empty::before {
+        content: "Drop items here";
+        display: block;
+        text-align: center;
+        color: #9ca3af;
+        font-size: 0.75rem;
+        padding: 24px 8px;
+        pointer-events: none;
+        user-select: none;
+    }
+    .board-chip {
+        display: block;
+        width: 100%;
+        text-align: left;
+        border: 1px solid rgba(0,0,0,0.12);
+        background: #fff;
+        border-radius: 6px;
+        padding: 7px 9px;
+        margin-bottom: 6px;
+        font-size: 0.78rem;
+        cursor: grab;
+        color: inherit;
+        user-select: none;
+        touch-action: none;
+    }
+    .board-chip:active { cursor: grabbing; }
+    .board-chip:hover { background: #f8f9fa; }
+    .board-chip:focus-visible {
+        outline: 2px solid rgba(79, 142, 247, 0.55);
+        outline-offset: 1px;
+    }
+    .board-chip .ghost-hint {
+        font-size: 0.68rem;
+        color: #6b7280;
+    }
+    .board-chip.inactive { opacity: 0.55; }
+    .board-layout-hint {
+        font-size: 0.78rem;
+        color: #6b7280;
+        margin-bottom: 10px;
+    }
+    .save-toast {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 2000;
+        display: none;
+    }
+    @media (max-width: 576px) {
+        .board-row {
+            grid-template-columns: 1fr;
+        }
+        .board-column {
+            max-height: min(65vh, 480px);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="/tools/inventory" class="text-decoration-none text-muted small">Inventory Tools</a>
+</div>
+<div class="page-title">Product Category Board</div>
+<p class="page-subtitle">Drag items between categories. Changes save automatically.</p>
+<p class="board-layout-hint mb-0">
+    Columns wrap to fit your screen; scroll inside a column when it has many items.
+</p>
+
+<div class="content-card mb-3">
+    <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label small mb-1">Search</label>
+            <input type="search" name="q" value="{{ search }}" class="form-control form-control-sm"
+                   placeholder="Item name">
+        </div>
+        <div class="col-md-4 d-flex flex-wrap gap-3">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="include_inactive" value="1"
+                       id="includeInactive" {% if include_inactive %}checked{% endif %}
+                       onchange="this.form.submit()">
+                <label class="form-check-label small" for="includeInactive">Show inactive</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="hide_modifiers" value="1"
+                       id="hideModifiers" {% if hide_modifiers %}checked{% endif %}
+                       onchange="this.form.submit()">
+                <label class="form-check-label small" for="hideModifiers">Hide modifiers</label>
+            </div>
+        </div>
+        <div class="col-md-4 d-flex flex-wrap gap-2 justify-content-md-end">
+            <button type="button" class="btn btn-sm btn-primary" id="btnApplySuggestions">
+                Apply suggestions
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnPreviewRules">
+                Preview auto-rules
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="btnApplyRules">
+                Apply auto-rules
+            </button>
+            <a href="/tools/inventory/categories/export{% if include_inactive %}?include_inactive=1{% endif %}"
+               class="btn btn-sm btn-outline-secondary">Export CSV</a>
+        </div>
+    </form>
+    <form method="post" action="/tools/inventory/categories/import" enctype="multipart/form-data"
+          class="mt-3 d-flex flex-wrap align-items-center gap-2">
+        <input type="file" name="file" accept=".csv" class="form-control form-control-sm" style="max-width:280px" required>
+        <div class="form-check mb-0">
+            <input class="form-check-input" type="checkbox" name="move_missing_to_uncategorized" value="1" id="moveMissing">
+            <label class="form-check-label small" for="moveMissing">Move items not in CSV to uncategorized</label>
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary">Import CSV</button>
+    </form>
+</div>
+
+<div class="board-row" id="categoryBoard">
+    <div class="board-column" data-category-id="" style="background:#f3f4f6">
+        <div class="board-column-header">
+            <span>Unassigned</span>
+            <span class="badge text-bg-secondary">{{ board.unassigned_count }}</span>
+        </div>
+        <div class="board-column-body">
+        <div class="board-dropzone" id="col-unassigned">
+            {% for chip in board.unassigned %}
+            <div class="board-chip{% if not chip.is_active %} inactive{% endif %}"
+                 data-item-id="{{ chip.item_id }}"
+                 data-href="/item/{{ chip.item_id }}"
+                 role="button" tabindex="0">
+                {{ chip.name[:40] }}{% if chip.name|length > 40 %}...{% endif %}
+                {% if chip.suggested_product_category_id and not chip.product_category_source %}
+                <div class="ghost-hint">suggested: {{ chip.suggested_product_category_id }}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        </div>
+    </div>
+    {% for col in board.columns %}
+    <div class="board-column" data-category-id="{{ col.product_category_id }}"
+         style="background: {{ col.color_hex }}22; border-color: {{ col.color_hex }}55;">
+        <div class="board-column-header">
+            <span>{{ col.name }}</span>
+            <span class="badge text-bg-light text-dark">{{ col.count }}</span>
+        </div>
+        <div class="board-column-body">
+        <div class="board-dropzone" id="col-{{ col.product_category_id }}">
+            {% for chip in col.chips %}
+            <div class="board-chip{% if not chip.is_active %} inactive{% endif %}"
+                 data-item-id="{{ chip.item_id }}"
+                 data-href="/item/{{ chip.item_id }}"
+                 role="button" tabindex="0">
+                {{ chip.name[:40] }}{% if chip.name|length > 40 %}...{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="alert alert-success save-toast" id="saveToast" role="alert">Saved</div>
+<div class="alert alert-danger save-toast" id="errorToast" role="alert">Save failed</div>
+
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Auto-categorize preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <table class="table table-sm" id="previewTable">
+                    <thead><tr><th>Item</th><th>Current</th><th>Suggested</th><th>Rule</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+                <p class="text-muted small mb-0" id="previewEmpty" style="display:none">No changes suggested.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script src="{{ url_for('static', filename='js/category_board.js') }}"></script>
+{% endblock %}

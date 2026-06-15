@@ -1,15 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Sales — NSC Micro Market{% endblock %}
+{% block title %}Sales ? NSC Micro Market{% endblock %}
 
 {% block content %}
 <div class="page-title">Sales</div>
 <p class="page-subtitle">Revenue and unit performance for the selected period.</p>
 
-<!-- Filter bar -->
+{% if ux.id == 'team_main' %}
+<!-- Filter bar (main-branch layout) -->
 <div class="filter-bar">
     <div class="btn-group btn-group-sm" role="group">
         <a href="?period=week{% if category_id %}&category_id={{ category_id }}{% endif %}"
-           class="btn {% if period == 'week' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+           class="btn {% if period in ('week', '7d') %}btn-primary{% else %}btn-outline-secondary{% endif %}">
             This Week
         </a>
         <a href="?period=lastweek{% if category_id %}&category_id={{ category_id }}{% endif %}"
@@ -22,7 +23,7 @@
         <input type="hidden" name="period" value="{{ period }}">
         <select name="category_id" class="form-select form-select-sm" style="max-width:200px;"
                 onchange="document.getElementById('cat-filter-form').submit()">
-            <option value="">All Categories</option>
+            <option value="">All product types</option>
             {% for cat in categories %}
             <option value="{{ cat.category_id }}"
                 {% if category_id == cat.category_id %}selected{% endif %}>
@@ -35,6 +36,13 @@
     <a href="/dashboards/sales/download?period={{ period }}{% if category_id %}&category_id={{ category_id }}{% endif %}"
        class="btn btn-sm btn-outline-secondary ms-auto">Download CSV</a>
 </div>
+{% else %}
+{% set filter_extra %}
+<a href="/dashboards/sales/download?period={{ period }}{% if category_id %}&category_id={{ category_id }}{% endif %}"
+   class="btn btn-sm btn-outline-secondary ms-auto">Download CSV</a>
+{% endset %}
+{% include "partials/period_filters.html" %}
+{% endif %}
 
 <!-- KPI tiles -->
 <div class="row g-3 mb-4">
@@ -71,7 +79,7 @@
 <div class="row g-3">
     <div class="col-lg-5">
         <div class="content-card h-100">
-            <div class="content-card-title">Sales by Category</div>
+            <div class="content-card-title">Sales by Product Type</div>
             {% if by_category %}
             <table class="table table-sm table-hover mb-0">
                 <thead class="table-light">
@@ -120,6 +128,65 @@
             </table>
             {% else %}
             <p class="text-muted small mb-0">No sales data for this period.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mt-1">
+    <div class="col-lg-6">
+        <div class="content-card h-100">
+            <div class="content-card-title">Sales by Supplier</div>
+            <p class="text-muted small">Clover tags for vendors (US Foods, Snak Club, etc.)</p>
+            {% if by_supplier %}
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Supplier</th>
+                        <th class="text-end">Revenue</th>
+                        <th class="text-end">Units</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in by_supplier %}
+                    <tr>
+                        <td>{{ row.name }}</td>
+                        <td class="text-end">${{ "%.2f"|format(row.revenue_cents / 100) }}</td>
+                        <td class="text-end">{{ row.units_sold }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="text-muted small mb-0">No supplier-tagged sales for this period.</p>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="content-card h-100">
+            <div class="content-card-title">Sales by Location</div>
+            <p class="text-muted small">Register / shop tags (Lily Pad Cafe, Bookstore)</p>
+            {% if by_location %}
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Location</th>
+                        <th class="text-end">Revenue</th>
+                        <th class="text-end">Units</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in by_location %}
+                    <tr>
+                        <td>{{ row.name }}</td>
+                        <td class="text-end">${{ "%.2f"|format(row.revenue_cents / 100) }}</td>
+                        <td class="text-end">{{ row.units_sold }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="text-muted small mb-0">No location-tagged sales for this period.</p>
             {% endif %}
         </div>
     </div>

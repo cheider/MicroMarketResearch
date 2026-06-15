@@ -1,7 +1,7 @@
 import json
 import time
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import app.database as db_module
 
@@ -20,6 +20,36 @@ class TestDashboardRoute:
     def test_contains_expected_text(self, client):
         response = client.get("/", follow_redirects=True)
         assert b"NSC Micro Market" in response.data
+
+    def test_sidebar_hides_analysis_links_by_default(self, client):
+        response = client.get("/dashboards/sales")
+        assert response.status_code == 200
+        assert b"/analysis/insights" not in response.data
+        assert b"UI demo preset" not in response.data
+
+    def test_sidebar_shows_analysis_links_with_insights_preset(self, client):
+        client.set_cookie("mmr_ux_variant", "insights_full")
+        response = client.get("/dashboards/sales")
+        assert response.status_code == 200
+        assert b"/analysis/insights" in response.data
+        assert b"/analysis/margins" in response.data
+
+
+class TestInsightsRoute:
+    def test_insights_returns_200(self, client):
+        client.set_cookie("mmr_ux_variant", "insights_full")
+        response = client.get("/analysis/insights")
+        assert response.status_code == 200
+
+    def test_insights_accepts_period(self, client):
+        client.set_cookie("mmr_ux_variant", "insights_full")
+        response = client.get("/analysis/insights?period=30d")
+        assert response.status_code == 200
+
+    def test_insights_redirects_when_team_main(self, client):
+        client.set_cookie("mmr_ux_variant", "team_main")
+        response = client.get("/analysis/insights")
+        assert response.status_code == 302
 
 
 class TestIngestStatusRoute:
@@ -280,3 +310,70 @@ class TestSettingsRoute:
         )
         assert response.status_code == 200
         assert b"cannot be blank" in response.data
+
+    def test_settings_category_suggestions_toggle(self, client):
+        resp = client.post(
+            "/settings/category-suggestions",
+            data={"use_suggested_categories": "on"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+        assert resp.headers.get("Set-Cookie", "").startswith(
+            "mmr_use_suggested_categories=1"
+        )
+
+    def test_settings_includes_stress_test_ui(self, client):
+        response = client.get("/settings")
+        assert b"Run stress tests" in response.data
+        assert b"stressProfile" in response.data
+
+
+class TestCloverStressRoutes:
+    def _wait_for_job(self, client, job_id, timeout=3.0):
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            resp = client.get(f"/api/clover-tests/progress/{job_id}")
+            data = json.loads(resp.data)
+            if data["overall_status"] in ("done", "error"):
+                return data
+            time.sleep(0.05)
+        raise TimeoutError(f"Job {job_id} did not complete within {timeout}s")
+
+    def test_profiles_list(self, client):
+        resp = client.get("/api/clover-tests/profiles")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert len(data["profiles"]) == 3
+
+    @patch("app.routes.clover_tests.run_stress_suite")
+    def test_start_and_complete_stress_job(self, mock_run, client):
+        mock_run.return_value = {
+            "profile": "light",
+            "profile_label": "Light",
+            "results": [{"name": "health_battery", "status": "pass", "requests": 7}],
+            "summary": {
+                "all_pass": True,
+                "passed": 1,
+                "warnings": 0,
+                "failed": 0,
+                "total_requests": 7,
+                "rate_limits_hit": 0,
+                "total_duration_ms": 100,
+                "total_checks": 1,
+            },
+        }
+        resp = client.post(
+            "/api/clover-tests/start",
+            data=json.dumps({"profile": "light"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 202
+        job_id = json.loads(resp.data)["job_id"]
+
+        final = self._wait_for_job(client, job_id)
+        assert final["overall_status"] == "done"
+        assert final["result"]["summary"]["all_pass"] is True
+
+    def test_progress_unknown_job_404(self, client):
+        resp = client.get("/api/clover-tests/progress/does-not-exist")
+        assert resp.status_code == 404

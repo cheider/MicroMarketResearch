@@ -39,6 +39,12 @@ from app.etl.load import (
     log_sync,
     get_last_successful_sync_ts,
 )
+from app.etl.category_suggestions import apply_category_suggestions
+from app.etl.product_taxonomy import (
+    classify_clover_categories,
+    derive_item_product_categories,
+    seed_product_categories,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +104,8 @@ def _run_ingest(
         clean_cats = [clean_category(r) for r in raw_categories]
         clean_cats = [c for c in clean_cats if c.get("category_id")]
         upsert_categories(clean_cats)
+        seed_product_categories()
+        classify_clover_categories()
         records_fetched += len(clean_cats)
         logger.info("Categories fetched=%d", len(clean_cats))
         _notify(on_progress, "categories", "done", len(clean_cats))
@@ -108,9 +116,21 @@ def _run_ingest(
         clean_items = [clean_item(r) for r in raw_items]
         clean_items = [i for i in clean_items if i.get("item_id")]
         upsert_items(clean_items)
+        derive_item_product_categories()
+        suggestions_applied = apply_category_suggestions()
         records_fetched += len(clean_items)
-        logger.info("Items fetched=%d", len(clean_items))
-        _notify(on_progress, "items", "done", len(clean_items))
+        logger.info(
+            "Items fetched=%d  category_suggestions_updated=%d",
+            len(clean_items),
+            suggestions_applied,
+        )
+        _notify(
+            on_progress,
+            "items",
+            "done",
+            len(clean_items),
+            f"{suggestions_applied} suggestion(s) refreshed",
+        )
 
         if since_ts:
             start_ms = _ts_to_ms(since_ts)
@@ -177,6 +197,7 @@ def _run_ingest(
             "mode": mode,
             "categories_synced": len(clean_cats),
             "items_synced": len(clean_items),
+            "category_suggestions_updated": suggestions_applied,
             "orders_processed": len(raw_orders),
             "line_items_processed": len(all_line_items),
             "daily_sales_rows": len(sales_rows),

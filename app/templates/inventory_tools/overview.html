@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Inventory Tools — NSC Micro Market{% endblock %}
+
+{% block content %}
+<div class="page-title">Inventory Tools</div>
+<p class="page-subtitle">Product categorization, missing costs, and catalog hygiene.</p>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="kpi-card">
+            <div class="kpi-label">Uncategorized</div>
+            <div class="kpi-value">{{ stats.uncategorized }}</div>
+            <div class="kpi-sub">Active items without product type</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="kpi-card red">
+            <div class="kpi-label">Missing Cost</div>
+            <div class="kpi-value">{{ stats.missing_cost }}</div>
+            <div class="kpi-sub">No Clover defaultCost</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="kpi-card green">
+            <div class="kpi-label">Manual Categories</div>
+            <div class="kpi-value">{{ stats.manual_count }}</div>
+            <div class="kpi-sub">Protected from sync overwrite</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="kpi-card purple">
+            <div class="kpi-label">Active Items</div>
+            <div class="kpi-value">{{ stats.total_active }}</div>
+            <div class="kpi-sub">
+                Clover {{ stats.clover_count }} · suggested {{ stats.suggested_count }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="content-card h-100">
+            <div class="content-card-title">Category Board</div>
+            <p class="text-muted small">Drag items into product-type columns, export/import CSV, and run auto-rules.</p>
+            <a href="/tools/inventory/categories" class="btn btn-sm btn-primary">Open board</a>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="content-card h-100">
+            <div class="content-card-title">Missing Costs</div>
+            <p class="text-muted small">Export items missing cost data for offline fill-in and Clover entry.</p>
+            <a href="/tools/inventory/missing-costs" class="btn btn-sm btn-outline-primary">Collect costs</a>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="content-card h-100">
+            <div class="content-card-title">Item detail</div>
+            <p class="text-muted small">Each item page shows supplier, inferred location, lifetime sales, and category source.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
