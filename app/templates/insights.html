@@ -65,7 +65,7 @@
         <div class="kpi-card orange">
             <div class="kpi-label">Exam-period uplift</div>
             <div class="kpi-value">
-                {% if calendar_cmp %}{{ calendar_cmp.uplift_pct }}%{% else %}—{% endif %}
+                {% if calendar_cmp %}{{ calendar_cmp.uplift_pct }}%{% else %}&mdash;{% endif %}
             </div>
             <div class="kpi-sub">{% if calendar_cmp %}{{ calendar_cmp.event.label }}{% else %}Select an event{% endif %}</div>
         </div>
@@ -128,7 +128,7 @@
                 <td><a href="/item/{{ row.item_id }}" class="text-decoration-none">{{ row.name }}</a></td>
                 <td class="text-end">{{ row.avg_daily_units }}</td>
                 <td class="text-end">{{ row.on_hand }}</td>
-                <td class="text-end">{{ row.days_until_stockout if row.days_until_stockout is not none else '—' }}</td>
+                <td class="text-end">{% if row.days_until_stockout is not none %}{{ row.days_until_stockout }}{% else %}&mdash;{% endif %}</td>
                 <td class="text-end fw-semibold">{{ row.suggested_reorder_qty }}</td>
             </tr>
             {% endfor %}

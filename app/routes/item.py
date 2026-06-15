@@ -1,5 +1,7 @@
 import json
-from flask import Blueprint, render_template, jsonify, abort, request, redirect, url_for, flash
+from flask import Blueprint, jsonify, abort, request, redirect, url_for, flash
+
+from app.render import render_app_template
 
 from app.analysis.item_context import get_item_profile
 from app.analysis.shrinkage import get_item_shrinkage
@@ -20,7 +22,7 @@ def item_detail(item_id):
         shrinkage = get_item_shrinkage(item_id, days=30)
     sales_series = get_item_sales_series(item_id, days=30)
 
-    return render_template(
+    return render_app_template(
         "item_detail.html",
         item=profile,
         shrinkage=shrinkage,

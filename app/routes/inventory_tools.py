@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
+import csv
 import io
 from datetime import date
 
+import pandas as pd
 from flask import (
     Blueprint,
     flash,
     jsonify,
     make_response,
     redirect,
-    render_template,
     request,
     url_for,
 )
+
+from app.render import render_app_template, scrub_if_demo, demo_mode_active
 
 from app.analysis.cost_collection import (
     get_missing_cost_items,
@@ -22,6 +25,7 @@ from app.analysis.cost_collection import (
 )
 from app.etl.auto_categorize import apply_auto_categorize, preview_auto_categorize
 from app.inventory_tools.categorization_io import (
+    CATEGORIZATION_CSV_COLUMNS,
     export_categorization_csv,
     import_categorization_csv,
 )
@@ -38,14 +42,14 @@ inventory_tools_bp = Blueprint("inventory_tools", __name__)
 @inventory_tools_bp.route("/tools/inventory")
 def inventory_overview():
     stats = get_inventory_tools_stats()
-    return render_template("inventory_tools/overview.html", stats=stats)
+    return render_app_template("inventory_tools/overview.html", stats=stats)
 
 
 @inventory_tools_bp.route("/tools/inventory/missing-costs")
 def missing_costs_page():
     missing_costs = get_missing_cost_items(limit=50)
     stats = get_inventory_tools_stats()
-    return render_template(
+    return render_app_template(
         "inventory_tools/missing_costs.html",
         missing_costs=missing_costs,
         stats=stats,
@@ -56,6 +60,8 @@ def missing_costs_page():
 def missing_costs_download():
     include_zero = request.args.get("include_zero_price", "1").strip() != "0"
     df = missing_cost_dataframe(include_zero_price=include_zero)
+    if demo_mode_active():
+        df = pd.DataFrame(scrub_if_demo(df.to_dict(orient="records")))
 
     buf = io.StringIO()
     df.to_csv(buf, index=False)
@@ -78,7 +84,7 @@ def categories_page():
         hide_modifiers=hide_modifiers,
         search=search,
     )
-    return render_template(
+    return render_app_template(
         "inventory_tools/categories.html",
         board=board,
         include_inactive=include_inactive,
@@ -91,6 +97,15 @@ def categories_page():
 def categories_export():
     include_inactive = request.args.get("include_inactive") == "1"
     csv_text = export_categorization_csv(include_inactive=include_inactive)
+    if demo_mode_active():
+        reader = csv.DictReader(io.StringIO(csv_text))
+        rows = scrub_if_demo(list(reader))
+        buf = io.StringIO()
+        writer = csv.DictWriter(buf, fieldnames=CATEGORIZATION_CSV_COLUMNS)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
+        csv_text = buf.getvalue()
     response = make_response(csv_text)
     response.headers["Content-Type"] = "text/csv"
     response.headers["Content-Disposition"] = (

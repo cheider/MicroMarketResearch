@@ -6,7 +6,9 @@ import io
 from datetime import date
 
 import pandas as pd
-from flask import Blueprint, render_template, request, make_response, g, redirect, url_for
+from flask import Blueprint, request, make_response, g, redirect, url_for
+
+from app.render import render_app_template, scrub_if_demo
 
 from app.analysis.periods import normalize_period, resolve_period
 from app.analysis.dashboard_analytics import (
@@ -64,7 +66,7 @@ def sales_dashboard():
     )
     categories = get_all_categories(use_suggested=use_suggested)
 
-    return render_template(
+    return render_app_template(
         "sales_dashboard.html",
         period=period,
         category_id=category_id,
@@ -88,6 +90,7 @@ def sales_download():
         top_n=1000,
         use_suggested=_use_suggested(),
     )
+    top_products = scrub_if_demo(top_products)
     df = pd.DataFrame(top_products) if top_products else pd.DataFrame(
         columns=["item_id", "name", "units_sold", "revenue_cents"]
     )
@@ -121,7 +124,7 @@ def inventory_dashboard():
     chart = get_stock_chart_data(top_n=20)
     categories = get_all_categories(use_suggested=use_suggested)
 
-    return render_template(
+    return render_app_template(
         "inventory_dashboard.html",
         period=period,
         period_info=resolve_period(period),
@@ -139,7 +142,7 @@ def inventory_download():
     low_stock = get_low_stock_items(threshold=10, use_suggested=_use_suggested())
     by_category = get_stock_by_category(use_suggested=_use_suggested())
 
-    rows = by_category if by_category else []
+    rows = scrub_if_demo(by_category) if by_category else []
     df = pd.DataFrame(rows) if rows else pd.DataFrame(
         columns=["category_id", "name", "total_stock"]
     )
@@ -172,7 +175,7 @@ def profit_dashboard():
     weekly = get_weekly_profit(weeks=8)
     categories = get_all_categories(use_suggested=use_suggested)
 
-    return render_template(
+    return render_app_template(
         "profit_dashboard.html",
         period=period,
         period_info=resolve_period(period),
@@ -189,8 +192,8 @@ def profit_download():
     period = _period_param()
     category_id = _category_param()
 
-    by_category = get_profit_by_category(
-        period=period, use_suggested=_use_suggested()
+    by_category = scrub_if_demo(
+        get_profit_by_category(period=period, use_suggested=_use_suggested())
     )
     df = pd.DataFrame(by_category) if by_category else pd.DataFrame(
         columns=["category_id", "name", "revenue_cents", "cost_cents", "margin_pct"]

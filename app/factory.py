@@ -10,6 +10,7 @@ from app.analysis.category_resolution import (
     SUGGESTED_CATEGORIES_COOKIE,
     use_suggested_categories,
 )
+from app.demo_anonymize import DEMO_ANONYMIZE_COOKIE, use_demo_anonymize
 from app.sync_status import get_last_sync
 from app.auto_sync import start_auto_sync
 
@@ -42,6 +43,9 @@ def create_app(config=None):
         g.use_suggested_categories = use_suggested_categories(
             request.cookies.get(SUGGESTED_CATEGORIES_COOKIE)
         )
+        g.demo_anonymize = use_demo_anonymize(
+            request.cookies.get(DEMO_ANONYMIZE_COOKIE)
+        )
 
     @app.context_processor
     def _inject_template_globals():
@@ -64,6 +68,7 @@ def create_app(config=None):
             "ux_variant_id": g.get("ux_variant_id") or cfg.UX_VARIANT_DEFAULT,
             "ux_variants": list_variants(),
             "use_suggested_categories": getattr(g, "use_suggested_categories", False),
+            "demo_anonymize": getattr(g, "demo_anonymize", False),
             "last_sync_label": label,
             "data_freshness_note": freshness,
         }
@@ -80,6 +85,7 @@ def create_app(config=None):
     from app.routes.clover_tests import clover_tests_bp
     from app.routes.quarters import quarters_bp
     from app.routes.inventory_tools import inventory_tools_bp
+    from app.routes.category_analysis import category_analysis_bp
 
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(dashboards_bp)
@@ -93,6 +99,7 @@ def create_app(config=None):
     app.register_blueprint(clover_tests_bp)
     app.register_blueprint(quarters_bp)
     app.register_blueprint(inventory_tools_bp)
+    app.register_blueprint(category_analysis_bp)
 
     if not isinstance(cfg, TestConfig):
         start_auto_sync(app)
