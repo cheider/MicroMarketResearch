@@ -152,4 +152,86 @@ def test_margin_derived_from_price_and_cost():
     profit = revenue - cost_total
     assert out["revenue_cents"] == revenue
     assert out["gross_profit_cents"] == profit
-    assert out["margin_pct"] == round(profit / revenue * 100, 1)
+    assert 30 <= out["margin_pct"] <= 60
+
+
+def test_profit_dashboard_stats_survive_scrub():
+    ctx = scrub_template_context({
+        "stats": {
+            "gross_profit_cents": 5000,
+            "profit_margin_pct": 25.0,
+            "total_costs_cents": 15000,
+            "no_cost_count": 4,
+            "daily_labels": ["2026-06-01", "2026-06-02"],
+            "daily_values": [3000, 2000],
+        },
+    })
+    stats = ctx["stats"]
+    assert "gross_profit_cents" in stats
+    assert stats["gross_profit_cents"] == sum(stats["daily_values"])
+    assert "profit_margin_pct" in stats
+    assert 30 <= stats["profit_margin_pct"] <= 60
+    assert "total_costs_cents" in stats
+    assert stats["no_cost_count"] == 0
+
+
+def test_profit_by_category_rows_keep_margin_fields():
+    ctx = scrub_template_context({
+        "by_category": [{
+            "category_id": "snacks",
+            "name": "Snacks",
+            "revenue_cents": 10000,
+            "cost_cents": 6000,
+            "gross_profit_cents": 4000,
+            "margin_pct": 40.0,
+        }],
+    })
+    row = ctx["by_category"][0]
+    assert row["revenue_cents"] > 0
+    assert row["gross_profit_cents"] > 0
+    assert 30 <= row["margin_pct"] <= 60
+
+
+def test_demo_cost_derived_from_price_not_original():
+    """Demo mode picks margin first, then cost = price × (1 − margin); real cost is ignored."""
+    from app.demo_anonymize import demo_margin_ratio, margin_pct_from_price_cost
+
+    row = {
+        "item_id": "ITEM1",
+        "price_cents": 400,
+        "cost_cents": 10,
+        "margin_pct": 97.5,
+    }
+    out = scrub_payload([row])[0]
+    m = demo_margin_ratio("ITEM1")
+    assert out["cost_cents"] == round(out["price_cents"] * (1 - m))
+    assert out["margin_pct"] == margin_pct_from_price_cost(out["price_cents"], out["cost_cents"])
+    assert out["cost_cents"] != 10
+
+
+def test_margins_page_cost_matches_price_minus_margin():
+    from app.demo_anonymize import demo_margin_ratio
+
+    ctx = scrub_template_context({
+        "acceptable": [{
+            "item_id": "ITEM1",
+            "name": "Granola Bar",
+            "price_dollars": 2.0,
+            "cost_dollars": 0.5,
+            "margin_pct": 75.0,
+        }],
+    })
+    row = ctx["acceptable"][0]
+    price_cents = round(row["price_dollars"] * 100)
+    cost_cents = round(row["cost_dollars"] * 100)
+    m = demo_margin_ratio("ITEM1")
+    assert cost_cents == round(price_cents * (1 - m))
+    assert row["margin_pct"] == round((price_cents - cost_cents) / price_cents * 100, 1)
+
+
+def test_demo_margin_ratio_is_in_realistic_band():
+    from app.demo_anonymize import demo_margin_ratio
+
+    for seed in ("a", "b", "item-123", "weekly"):
+        ratio = demo_margin_ratio(seed)
+        assert 0.30 <= ratio <= 0.60

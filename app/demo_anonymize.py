@@ -75,11 +75,11 @@ _UNIT_INT_KEYS = frozenset({
     "shrinkage_units",
     "units_sold_90d",
     "total_stock",
+    "total_units",
 })
 
 _BASE_CENTS_KEYS = frozenset({
     "price_cents",
-    "cost_cents",
 })
 
 # Never masked directly — always recomputed from masked bases.
@@ -130,6 +130,10 @@ _LOREM = (
 )
 
 _DEMO_DATE_BASE = date(2024, 1, 1)
+
+# Realistic retail micro-market gross margins for demo synthesis.
+_DEMO_MARGIN_MIN_PCT = 30
+_DEMO_MARGIN_MAX_PCT = 60
 
 
 def use_demo_anonymize(cookie_value: str | None) -> bool:
@@ -198,6 +202,47 @@ def _lorem_label(seed: str) -> str:
     return _LOREM[_digest("lorem", seed) % len(_LOREM)]
 
 
+def demo_margin_ratio(seed: str) -> float:
+    """Deterministic gross-margin ratio in [0.30, 0.60] for demo profit synthesis."""
+    span = _DEMO_MARGIN_MAX_PCT - _DEMO_MARGIN_MIN_PCT + 1
+    pct = _DEMO_MARGIN_MIN_PCT + (_digest("demo-margin", seed) % span)
+    return pct / 100.0
+
+
+def demo_margin_pct(seed: str) -> float:
+    return round(demo_margin_ratio(seed) * 100, 1)
+
+
+def demo_unit_cost_cents(price_cents: int, seed: str) -> int:
+    """Demo-only: derive unit cost from masked price and a deterministic 30–60% margin."""
+    if price_cents <= 0:
+        return 0
+    margin = demo_margin_ratio(seed)
+    return max(0, round(price_cents * (1 - margin)))
+
+
+def margin_pct_from_price_cost(price_cents: int, cost_cents: int) -> float:
+    """Gross margin % from price and (derived) cost — used for demo display consistency."""
+    if price_cents <= 0:
+        return 0.0
+    return round((price_cents - cost_cents) / price_cents * 100, 1)
+
+
+def _needs_demo_derived_cost(orig: dict) -> bool:
+    return any(
+        k in orig
+        for k in (
+            "cost_cents",
+            "cost_dollars",
+            "margin",
+            "margin_pct",
+            "gross_profit_cents",
+            "total_costs_cents",
+            "profit_margin_pct",
+        )
+    )
+
+
 def _implied_unit_price_cents(orig: dict) -> int:
     for units_key in ("units_sold", "lifetime_units_sold", "quantity", "units_sold_90d"):
         units = orig.get(units_key)
@@ -212,14 +257,107 @@ def _implied_unit_price_cents(orig: dict) -> int:
     return 199
 
 
-def _implied_unit_cost_cents(orig: dict) -> int | None:
-    units = orig.get("units_sold") or orig.get("quantity") or 0
-    cost = orig.get("cost_cents")
-    if cost is None:
+def _resolve_demo_price_cents(out: dict, orig: dict, seed: str) -> int | None:
+    price = out.get("price_cents")
+    if price is not None:
+        return int(price)
+    if "price_cents" in orig and orig["price_cents"] is not None:
+        price = pseudo_price_cents(seed, int(orig["price_cents"] or 0))
+        out["price_cents"] = price
+        return price
+    if "price_dollars" in orig and orig["price_dollars"] is not None:
+        price = pseudo_price_cents(seed, round(float(orig["price_dollars"]) * 100))
+        out["price_cents"] = price
+        return price
+    return None
+
+
+def _resolve_demo_unit_cost_cents(
+    out: dict, orig: dict, seed: str, price_cents: int | None
+) -> int | None:
+    """
+    Demo-only: never mask real cost. When price is known and cost/margin fields
+    are present, derive unit cost from price × (1 − random 30–60% margin).
+    """
+    if price_cents is None or price_cents <= 0 or not _needs_demo_derived_cost(orig):
         return None
-    if units and units > 0 and cost > 0:
-        return max(0, round(cost / units))
-    return int(cost) if cost else None
+    unit_cost = demo_unit_cost_cents(price_cents, seed)
+    out["cost_cents"] = unit_cost
+    return unit_cost
+
+
+def _apply_demo_margin_dollars(out: dict, orig: dict, seed: str) -> None:
+    price = _resolve_demo_price_cents(out, orig, seed)
+    unit_cost = _resolve_demo_unit_cost_cents(out, orig, seed, price)
+    if price is None:
+        return
+    if "price_dollars" in orig:
+        out["price_dollars"] = round(price / 100, 2)
+    if unit_cost is not None and "cost_dollars" in orig:
+        out["cost_dollars"] = round(unit_cost / 100, 2)
+    if unit_cost is not None and price > 0:
+        calc_margin = margin_pct_from_price_cost(price, unit_cost)
+        if "margin_pct" in orig:
+            out["margin_pct"] = calc_margin
+        if "margin" in orig:
+            out["margin"] = round(calc_margin / 100, 4)
+
+
+def _apply_aggregate_profit_fields(out: dict, orig: dict, seed: str) -> None:
+    """Recompute category / weekly profit rows that lack units_sold."""
+    if not any(
+        k in orig
+        for k in ("revenue_cents", "gross_profit_cents", "cost_cents", "margin_pct")
+    ):
+        return
+
+    if "gross_profit_cents" in orig and not any(
+        k in orig for k in ("revenue_cents", "gross_revenue_cents")
+    ):
+        profit = int(orig.get("gross_profit_cents") or 0)
+        if profit <= 0:
+            out["gross_profit_cents"] = 0
+            return
+        masked_profit = pseudo_units(f"{seed}:weekly-profit", max(1, profit // 100)) * 100
+        margin = demo_margin_ratio(seed)
+        revenue = round(masked_profit / margin) if margin > 0 else masked_profit
+        total_cost = max(0, revenue - masked_profit)
+        out["gross_profit_cents"] = masked_profit
+        if "total_costs_cents" in orig:
+            out["total_costs_cents"] = total_cost
+        if "margin_pct" in orig and revenue > 0:
+            out["margin_pct"] = round(masked_profit / revenue * 100, 1)
+        return
+
+    revenue = int(orig.get("revenue_cents") or orig.get("gross_revenue_cents") or 0)
+    if revenue <= 0:
+        return
+
+    implied_units = max(1, round(revenue / max(_implied_unit_price_cents(orig), 1)))
+    units = out.get("units_sold")
+    if units is None:
+        units = pseudo_units(f"{seed}:agg-units", implied_units)
+        out["units_sold"] = units
+
+    unit_price = _resolve_demo_price_cents(out, orig, seed) or pseudo_price_cents(
+        seed, _implied_unit_price_cents(orig)
+    )
+    out["price_cents"] = unit_price
+    revenue = int(units) * int(unit_price)
+    _set_revenue_fields(out, orig, revenue)
+
+    margin = demo_margin_ratio(seed)
+    total_cost = round(revenue * (1 - margin))
+    profit = revenue - total_cost
+
+    if "cost_cents" in orig:
+        out["cost_cents"] = total_cost
+    if "gross_profit_cents" in orig:
+        out["gross_profit_cents"] = profit
+    if "total_costs_cents" in orig:
+        out["total_costs_cents"] = total_cost
+    if revenue > 0 and "margin_pct" in orig:
+        out["margin_pct"] = round(margin * 100, 1)
 
 
 def _set_revenue_fields(out: dict, orig: dict, revenue_cents: int) -> None:
@@ -258,18 +396,41 @@ def _mask_daily_series(
     return masked_labels, masked_values, masked_units
 
 
-def _recompute_row_derivatives(out: dict, orig: dict, seed: str) -> None:
-    price = out.get("price_cents")
-    if price is None and "price_cents" in orig:
-        price = pseudo_price_cents(seed, int(orig["price_cents"] or 0))
-        out["price_cents"] = price
+def _mask_profit_daily_series(
+    labels: list,
+    values: list,
+    seed: str,
+) -> tuple[list, list, list]:
+    """Mask a daily gross-profit series while preserving realistic 30–60% margins."""
+    margin = demo_margin_ratio(f"{seed}:profit-margin")
+    ref_price = pseudo_price_cents(f"{seed}:profit-ref", 199)
+    ref_unit_profit = max(1, ref_price - demo_unit_cost_cents(ref_price, f"{seed}:profit-cost"))
 
-    unit_cost = out.get("cost_cents")
-    if unit_cost is None and "cost_cents" in orig and orig["cost_cents"] is not None:
-        implied = _implied_unit_cost_cents(orig)
-        if implied is not None:
-            unit_cost = pseudo_price_cents(f"{seed}:cost", implied)
-            out["cost_cents"] = unit_cost
+    masked_labels: list = []
+    masked_values: list = []
+    masked_units: list = []
+
+    for i, (label, value) in enumerate(zip(labels, values)):
+        day_seed = f"{seed}:profit:{label}:{i}"
+        masked_labels.append(pseudo_date(label) if isinstance(label, str) else label)
+        if not value:
+            masked_values.append(0)
+            masked_units.append(0)
+            continue
+        implied_units = max(1, round(int(value) / ref_unit_profit))
+        units = pseudo_units(day_seed, implied_units)
+        unit_price = pseudo_price_cents(day_seed, ref_price)
+        unit_cost = demo_unit_cost_cents(unit_price, day_seed)
+        profit_per_unit = unit_price - unit_cost
+        masked_units.append(units)
+        masked_values.append(units * profit_per_unit)
+
+    return masked_labels, masked_values, masked_units
+
+
+def _recompute_row_derivatives(out: dict, orig: dict, seed: str) -> None:
+    price = _resolve_demo_price_cents(out, orig, seed)
+    unit_cost = _resolve_demo_unit_cost_cents(out, orig, seed, price)
 
     units = out.get("units_sold")
     if units is None and "units_sold" in orig:
@@ -280,14 +441,10 @@ def _recompute_row_derivatives(out: dict, orig: dict, seed: str) -> None:
         unit_price = price if price is not None else pseudo_price_cents(seed, _implied_unit_price_cents(orig))
         revenue = int(units) * int(unit_price)
         _set_revenue_fields(out, orig, revenue)
-
-    if "lifetime_units_sold" in out and any(
-        k in orig for k in ("lifetime_revenue_cents", "lifetime_revenue_dollars")
-    ):
-        lu = int(out["lifetime_units_sold"])
-        unit_price = price if price is not None else pseudo_price_cents(seed, _implied_unit_price_cents(orig))
-        out["lifetime_revenue_cents"] = lu * unit_price
-        out["lifetime_revenue_dollars"] = round(out["lifetime_revenue_cents"] / 100, 2)
+        price = unit_price
+        if unit_cost is None:
+            unit_cost = demo_unit_cost_cents(unit_price, seed)
+            out["cost_cents"] = unit_cost
 
     if (
         units is not None
@@ -309,22 +466,62 @@ def _recompute_row_derivatives(out: dict, orig: dict, seed: str) -> None:
             if "profit_margin_pct" in orig:
                 out["profit_margin_pct"] = margin
 
+    if "lifetime_units_sold" in out and any(
+        k in orig for k in ("lifetime_revenue_cents", "lifetime_revenue_dollars")
+    ):
+        lu = int(out["lifetime_units_sold"])
+        unit_price = price if price is not None else pseudo_price_cents(seed, _implied_unit_price_cents(orig))
+        out["lifetime_revenue_cents"] = lu * unit_price
+        out["lifetime_revenue_dollars"] = round(out["lifetime_revenue_cents"] / 100, 2)
+
     if "daily_labels" in orig and "daily_values" in orig:
-        labels, values, day_units = _mask_daily_series(
-            list(orig["daily_labels"]),
-            list(orig["daily_values"]),
-            seed,
+        is_profit_series = (
+            "gross_profit_cents" in orig
+            and "total_revenue_cents" not in orig
+            and "units_sold" not in orig
         )
-        out["daily_labels"] = labels
-        out["daily_values"] = values
-        if "total_revenue_cents" in orig:
-            out["total_revenue_cents"] = sum(values)
-        if "units_sold" in orig:
-            out["units_sold"] = sum(day_units)
+        if is_profit_series:
+            labels, values, _ = _mask_profit_daily_series(
+                list(orig["daily_labels"]),
+                list(orig["daily_values"]),
+                seed,
+            )
+            out["daily_labels"] = labels
+            out["daily_values"] = values
+            if "gross_profit_cents" in orig:
+                out["gross_profit_cents"] = sum(values)
+            if "total_costs_cents" in orig or "profit_margin_pct" in orig:
+                margin = demo_margin_ratio(seed)
+                gross = int(out.get("gross_profit_cents") or sum(values))
+                revenue = round(gross / margin) if margin > 0 else gross
+                if "total_costs_cents" in orig:
+                    out["total_costs_cents"] = max(0, revenue - gross)
+                if "profit_margin_pct" in orig and revenue > 0:
+                    out["profit_margin_pct"] = round(gross / revenue * 100, 1)
+        else:
+            labels, values, day_units = _mask_daily_series(
+                list(orig["daily_labels"]),
+                list(orig["daily_values"]),
+                seed,
+            )
+            out["daily_labels"] = labels
+            out["daily_values"] = values
+            if "total_revenue_cents" in orig:
+                out["total_revenue_cents"] = sum(values)
+            if "units_sold" in orig:
+                out["units_sold"] = sum(day_units)
 
     elif "total_revenue_cents" in orig and "units_sold" in out and "daily_values" not in orig:
         unit_price = pseudo_price_cents(seed, _implied_unit_price_cents(orig))
         out["total_revenue_cents"] = int(out["units_sold"]) * unit_price
+
+    if (
+        "gross_profit_cents" in orig
+        and "gross_profit_cents" not in out
+        and "daily_values" not in orig
+        and "units_sold" not in out
+    ):
+        _apply_aggregate_profit_fields(out, orig, seed)
 
     if "opening_stock" in out and "units_sold" in out:
         expected = int(out["opening_stock"]) - int(out["units_sold"])
@@ -338,10 +535,8 @@ def _recompute_row_derivatives(out: dict, orig: dict, seed: str) -> None:
                 cost = unit_cost or out.get("cost_cents") or 0
                 out["shrinkage_value_cents"] = shrink_units * int(cost)
 
-    if "price_cents" in out and "price_dollars" in orig:
-        out["price_dollars"] = round(out["price_cents"] / 100, 2)
-    if "cost_cents" in out and out.get("cost_cents") is not None and "cost_dollars" in orig:
-        out["cost_dollars"] = round(out["cost_cents"] / 100, 2)
+    _apply_demo_margin_dollars(out, orig, seed)
+
     if "revenue_cents_90d" in orig and "units_sold_90d" in out:
         unit_price = price if price is not None else pseudo_price_cents(seed, _implied_unit_price_cents(orig))
         out["revenue_cents_90d"] = int(out["units_sold_90d"]) * int(unit_price)
@@ -386,7 +581,7 @@ def scrub_row(row: dict, parent_id: str = "") -> dict:
 
     out: dict = {}
     for k, v in orig.items():
-        if k in _DERIVED_CENTS_KEYS or k in _DERIVED_FLOAT_KEYS:
+        if k in _DERIVED_CENTS_KEYS or k in _DERIVED_FLOAT_KEYS or k in ("cost_cents", "cost_dollars"):
             continue
         if k == "name" and scrub_dimension_name and isinstance(v, str):
             out[k] = _lorem_label(v)
@@ -396,6 +591,8 @@ def scrub_row(row: dict, parent_id: str = "") -> dict:
         elif isinstance(v, list):
             if k in ("daily_labels", "daily_values", "chart_labels", "chart_revenue", "chart_units"):
                 out[k] = deepcopy(v)
+            elif k == "values" and v and all(isinstance(x, int) for x in v):
+                out[k] = [pseudo_units(f"{seed}:values:{i}", x) for i, x in enumerate(v)]
             else:
                 out[k] = scrub_payload(v, seed)
         else:
@@ -436,7 +633,19 @@ def _reconcile_stats_from_children(ctx: dict) -> None:
         return
 
     if "daily_values" in stats:
-        stats["total_revenue_cents"] = sum(int(v) for v in stats["daily_values"])
+        if "gross_profit_cents" in stats:
+            stats["gross_profit_cents"] = sum(int(v) for v in stats["daily_values"])
+            margin = demo_margin_ratio("stats-profit")
+            gross = int(stats["gross_profit_cents"])
+            revenue = round(gross / margin) if margin > 0 else gross
+            if "total_costs_cents" in stats:
+                stats["total_costs_cents"] = max(0, revenue - gross)
+            if "profit_margin_pct" in stats and revenue > 0:
+                stats["profit_margin_pct"] = round(gross / revenue * 100, 1)
+            if "no_cost_count" in stats:
+                stats["no_cost_count"] = 0
+        elif "total_revenue_cents" in stats:
+            stats["total_revenue_cents"] = sum(int(v) for v in stats["daily_values"])
         return
 
     child_lists = (
@@ -491,6 +700,21 @@ def _reconcile_root_totals(ctx: dict) -> None:
             ctx["total_revenue_cents"] = sum(int(r.get("revenue_cents") or 0) for r in rows)
 
 
+def _reconcile_popularity_charts(ctx: dict) -> None:
+    for key in ("popularity_overall",):
+        chart = ctx.get(key)
+        if isinstance(chart, dict) and "labels" in chart:
+            chart["labels"] = [pseudo_date(d) if isinstance(d, str) else d for d in chart["labels"]]
+
+    by_category = ctx.get("popularity_by_category")
+    if isinstance(by_category, list):
+        for block in by_category:
+            if isinstance(block, dict) and "labels" in block:
+                block["labels"] = [
+                    pseudo_date(d) if isinstance(d, str) else d for d in block["labels"]
+                ]
+
+
 def scrub_template_context(context: dict) -> dict:
     ctx = deepcopy(context)
     parent = ""
@@ -502,4 +726,5 @@ def scrub_template_context(context: dict) -> dict:
     _reconcile_stats_from_children(ctx)
     _reconcile_root_totals(ctx)
     _reconcile_sales_series_json(ctx)
+    _reconcile_popularity_charts(ctx)
     return ctx

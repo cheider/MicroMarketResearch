@@ -1,5 +1,6 @@
 import pytest
 import app.database as db_module
+from app.database import get_connection
 from app.etl.load import upsert_fetched_orders, get_fetched_order_ids
 
 
@@ -40,3 +41,57 @@ class TestFetchedOrdersLoad:
         upsert_fetched_orders(["order-x"])
         ids = get_fetched_order_ids()
         assert isinstance(ids, set)
+
+
+class TestUpsertItemsCost:
+    def test_preserves_existing_cost_when_sync_payload_omits_cost(self, app):
+        from app.etl.load import upsert_items
+
+        upsert_items([{
+            "item_id": "item-1",
+            "name": "Water",
+            "price_cents": 150,
+            "cost_cents": 55,
+            "is_active": 1,
+            "category_id": None,
+        }])
+        upsert_items([{
+            "item_id": "item-1",
+            "name": "Water",
+            "price_cents": 150,
+            "cost_cents": None,
+            "is_active": 1,
+            "category_id": None,
+        }])
+
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT cost_cents FROM items WHERE item_id = 'item-1'"
+            ).fetchone()
+        assert row["cost_cents"] == 55
+
+    def test_updates_cost_when_sync_payload_includes_cost(self, app):
+        from app.etl.load import upsert_items
+
+        upsert_items([{
+            "item_id": "item-2",
+            "name": "Bar",
+            "price_cents": 200,
+            "cost_cents": 80,
+            "is_active": 1,
+            "category_id": None,
+        }])
+        upsert_items([{
+            "item_id": "item-2",
+            "name": "Bar",
+            "price_cents": 200,
+            "cost_cents": 95,
+            "is_active": 1,
+            "category_id": None,
+        }])
+
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT cost_cents FROM items WHERE item_id = 'item-2'"
+            ).fetchone()
+        assert row["cost_cents"] == 95

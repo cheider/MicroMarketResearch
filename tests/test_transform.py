@@ -38,6 +38,21 @@ class TestCleanItem:
         result = clean_item(sample_items[0])
         assert result["cost_cents"] == 50
 
+    def test_maps_clover_cost_field(self):
+        raw = {"id": "x", "name": "Chips", "price": 175, "cost": 90}
+        result = clean_item(raw)
+        assert result["cost_cents"] == 90
+
+    def test_prefers_cost_over_legacy_default_cost(self):
+        raw = {"id": "x", "name": "Chips", "price": 175, "cost": 90, "defaultCost": 50}
+        result = clean_item(raw)
+        assert result["cost_cents"] == 90
+
+    def test_falls_back_to_default_cost(self):
+        raw = {"id": "x", "name": "Chips", "price": 175, "defaultCost": 50}
+        result = clean_item(raw)
+        assert result["cost_cents"] == 50
+
     def test_null_cost_when_missing(self, sample_items):
         result = clean_item(sample_items[3])
         assert result["cost_cents"] is None

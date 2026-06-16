@@ -16,7 +16,7 @@ from collections import defaultdict
 
 CATEGORY_SAFE_FIELDS = {"id", "name"}
 
-ITEM_SAFE_FIELDS = {"id", "name", "price", "defaultCost", "isRevenue", "hidden", "itemStock", "categories"}
+ITEM_SAFE_FIELDS = {"id", "name", "price", "cost", "defaultCost", "isRevenue", "hidden", "itemStock", "categories"}
 
 LINE_ITEM_SAFE_FIELDS = {"id", "item", "quantity", "price", "createdTime"}
 
@@ -60,11 +60,20 @@ def clean_item(raw: dict) -> dict:
     cat_elements = categories.get("elements", []) if isinstance(categories, dict) else []
     category_id = cat_elements[0].get("id") if cat_elements else None
 
+    # Clover Inventory API uses ``cost`` (cents). Older payloads may use ``defaultCost``.
+    cost_cents = None
+    if "cost" in raw:
+        cost_cents = raw.get("cost")
+    elif "defaultCost" in raw:
+        cost_cents = raw.get("defaultCost")
+    if cost_cents is not None:
+        cost_cents = int(cost_cents)
+
     return {
         "item_id": safe.get("id"),
         "name": safe.get("name", ""),
         "price_cents": safe.get("price", 0),
-        "cost_cents": safe.get("defaultCost"),
+        "cost_cents": cost_cents,
         "is_active": 0 if safe.get("hidden") else 1,
         "stock_quantity": stock_quantity,
         "category_id": category_id,
