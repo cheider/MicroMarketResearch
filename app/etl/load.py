@@ -48,7 +48,7 @@ def upsert_item(item: dict):
             ON CONFLICT(item_id) DO UPDATE SET
                 name        = excluded.name,
                 price_cents = excluded.price_cents,
-                cost_cents  = excluded.cost_cents,
+                cost_cents  = COALESCE(excluded.cost_cents, items.cost_cents),
                 is_active   = excluded.is_active,
                 category_id = excluded.category_id,
                 last_synced = excluded.last_synced
@@ -78,7 +78,7 @@ def upsert_items(items: list):
             ON CONFLICT(item_id) DO UPDATE SET
                 name        = excluded.name,
                 price_cents = excluded.price_cents,
-                cost_cents  = excluded.cost_cents,
+                cost_cents  = COALESCE(excluded.cost_cents, items.cost_cents),
                 is_active   = excluded.is_active,
                 category_id = excluded.category_id,
                 last_synced = excluded.last_synced

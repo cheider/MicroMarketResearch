@@ -1,7 +1,8 @@
 """
 Missing item cost export for manual collection and Clover entry.
 
-Clover stores per-item cost as ``defaultCost`` (synced to ``items.cost_cents``).
+Clover stores per-item cost as ``cost`` on the inventory item (synced to ``items.cost_cents``).
+Legacy API payloads may use ``defaultCost``.
 This module lists active items with no cost and ranks them by recent sales.
 """
 
